@@ -1,6 +1,6 @@
 # scRNAseq-WGAN-GP
 
-<img align="right" width="200" height="200" src="/images/github.png?raw=true">
+<img align="right" width="250" height="250" src="/images/github.png?raw=true">
 
 Wasserstein Generative Adversarial Network for analysing scRNAseq data.
 
