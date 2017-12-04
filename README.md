@@ -1,9 +1,10 @@
 # scRNAseq-WGAN-GP
+
+<img align="right" width="200" height="200" src="/images/github.png?raw=true">
+
 Wasserstein Generative Adversarial Network for analysing scRNAseq data.
 
 This repo contains a Jupyter Notebook with a minimal version of the WGAN-GP algorithm.
-
-<img align="right" width="200" height="200" src="/images/github.png?raw=true">
 
 ## Usage
 
