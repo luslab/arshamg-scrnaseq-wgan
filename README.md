@@ -12,4 +12,17 @@ Related manuscript is on [bioRxiv](https://www.biorxiv.org/content/early/2018/02
 
 Dependencies: Tensorflow, NumPy, Pandas, scikit-learn
 
-Clone the repo and run /notebooks/WGAN-GP_minimal.ipynb using your own data or the decompressed supplied data in /data/
+
+
+Clone the repo, ensure you have git lfs installed and perform git lfs pull for the CSV files
+```
+python ./scripts/WGAN-GP_minimal.py
+```
+
+
+Watch discriminator/generator loss convergence:
+```
+tensorboard --logdir=./summaries/
+```
+
+
