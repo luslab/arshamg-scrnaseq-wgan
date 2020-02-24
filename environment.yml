@@ -1,0 +1,7 @@
+# You can use this file to create a conda environment for this project:
+#   conda env create -f environment.yml
+name: scrnaseq-wgan
+channels:
+    - conda-forge
+    - bioconda
+    - defaults
