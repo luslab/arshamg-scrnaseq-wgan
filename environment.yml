@@ -1,9 +1,10 @@
 # You can use this file to create a conda environment for this project:
 #   conda env create -f environment.yml
+# Use this file to specify additional packages to install on-top of the already installed.
 name: scrnaseq-wgan
 channels:
     - conda-forge
     - bioconda
     - defaults
 dependencies:
-    - anaconda::tensorflow=2.*
+    - numpy
