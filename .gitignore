@@ -1,2 +1,4 @@
 .DS_Store
 data/
+
+jupyter/.ipynb_checkpoints/
