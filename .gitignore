@@ -2,7 +2,4 @@
 data/
 
 jupyter/.ipynb_checkpoints/
-
-jupyter/logs/gradient_tape/20200306-115617/train/
-
-jupyter/logs/gradient_tape/20200306-120554/train/
+jupyter/logs/
