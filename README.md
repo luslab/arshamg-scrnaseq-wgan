@@ -26,3 +26,5 @@ tensorboard --logdir=./summaries/
 ```
 
 `docker run --rm -p 8888:8888 -p 6006:6006 -e JUPYTER_ENABLE_LAB=yes -v "$PWD":/home/jovyan/work luslab/scrnaseq-wgan`
+
+`tensorboard --logdir logs --host 0.0.0.0`
