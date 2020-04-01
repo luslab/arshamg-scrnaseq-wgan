@@ -3,3 +3,5 @@ data/
 
 jupyter/.ipynb_checkpoints/
 jupyter/logs/
+
+jupyter/training_checkpoints/
