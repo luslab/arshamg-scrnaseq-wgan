@@ -1,7 +1,9 @@
 .DS_Store
 data/
-
 jupyter/.ipynb_checkpoints/
 jupyter/logs/
-
 jupyter/training_checkpoints/
+
+nextflow/.nextflow*
+nextflow/work/
+nextflow/results/
