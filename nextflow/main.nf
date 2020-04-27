@@ -58,13 +58,51 @@ process download {
     """
 }
 
+process prepareData {
+  publishDir "${params.outdir}/processed",
+    mode: "copy", overwrite: true
+
+    input:
+      val(files)
+
+    output:
+      path "*.csv"
+
+    shell:
+
+    arg1 = files[4]
+    arg2 = files[2]
+    arg3 = files[1]
+    arg4 = files[3]
+    arg5 = files[0]
+    arg6 = files[5]
+    arg7 = 'gtf.txt'
+
+    """
+    python $baseDir/bin/prepare-data.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7
+    """
+}
+
+// //
 /*------------------------------------------------------------------------------------*/
+// $files[]
+
+//#gtf_path = data_path + '/Mus_musculus.GRCm38.99.gtf'
+//#tpm_yang_path2 = data_path + '/GSE90848_Tel_Ana1_Ana2_bulge_HG_basal_HB_TPM.txt'
+//#tpm_yang_path = data_path + '/GSE90848_Ana6_basal_hair_bulb_TPM.txt'
+//#tpm_ghahramani_path = data_path + '/GSE99989_NCA_BCatenin_TPM_matrix.csv'
+//#tpm_joost_path = data_path + '/GSE67602_Joost_et_al_expression.txt'
+//#gene_tsv_path = data_path + '/gene_names.tsv'
+//#gtf_data_path = data_path + '/gtf.txt'*/
 
 // Run workflow
 workflow {
 
     // Download data
-    download().collect().view()
+    download()
+
+    // Prepare data
+    prepareData( download.out.collect() ).collect().view()
 }
 
 
