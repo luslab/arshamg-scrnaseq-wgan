@@ -16,6 +16,9 @@ nextflow.preview.dsl=2
 /* Params
 --------------------------------------------------------------------------------------*/
 
+params.epochs = 2
+params.writeFreq = 1
+
 /*------------------------------------------------------------------------------------*/
 /* Processes
 --------------------------------------------------------------------------------------*/
@@ -58,6 +61,33 @@ process prepareData {
     """
 }
 
+process runGann {
+  publishDir "${params.outdir}/gann",
+    mode: "copy", overwrite: true
+
+    input:
+      val(files)
+
+    output:
+      path "gen/*.csv"
+
+    shell:
+
+    arg1 = files[0]
+    arg2 = files[1]
+    arg3 = files[2]
+    arg4 = files[3]
+    arg5 = files[4]
+    arg6 = files[5]
+    arg7 = files[6]
+    arg8 = files[7]
+
+    """
+    mkdir gen logs
+    python $baseDir/bin/gann.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7 $arg8 ${params.epochs} ${params.writeFreq}
+    """
+}
+
 /*------------------------------------------------------------------------------------*/
 
 // Run workflow
@@ -67,7 +97,10 @@ workflow {
     download()
 
     // Prepare data
-    prepareData( download.out.collect() ).collect().view()
+    prepareData( download.out.collect() )
+
+    // run gann
+    runGann( prepareData.out.collect() ).collect().view()
 }
 
 
