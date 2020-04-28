@@ -70,8 +70,6 @@ process runGann {
     output:
       path "gen/*.csv"
 
-      //test
-
     shell:
       arg1 = files[0]
       arg2 = files[1]
@@ -83,6 +81,7 @@ process runGann {
       arg8 = files[7]
 
       """
+      echo test
       mkdir gen logs
       python $baseDir/bin/gann.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7 $arg8 ${params.epochs} ${params.writeFreq}
       """
