@@ -70,6 +70,8 @@ process runGann {
     output:
       path "gen/*.csv"
 
+      //test
+
     shell:
       arg1 = files[0]
       arg2 = files[1]
