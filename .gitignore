@@ -1,4 +1,9 @@
-summaries/*
-models/*
 .DS_Store
-scripts/__pycache__/
+data/
+jupyter/.ipynb_checkpoints/
+jupyter/logs/
+jupyter/training_checkpoints/
+
+nextflow/.nextflow*
+nextflow/work/
+nextflow/results/
