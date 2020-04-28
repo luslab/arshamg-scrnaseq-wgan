@@ -100,9 +100,8 @@ workflow {
     prepareData( download.out.collect() )
 
     // run gann
-    runGann( prepareData.out.collect() ).collect().view()
+    runGann( prepareData.out.collect() )
 }
-
 
 workflow.onComplete {
     log.info "\nPipeline complete!\n"
