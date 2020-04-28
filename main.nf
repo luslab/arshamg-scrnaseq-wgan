@@ -47,18 +47,17 @@ process prepareData {
       path "*.csv"
 
     shell:
+      arg1 = files[4]
+      arg2 = files[2]
+      arg3 = files[1]
+      arg4 = files[3]
+      arg5 = files[0]
+      arg6 = files[5]
+      arg7 = 'gtf.txt'
 
-    arg1 = files[4]
-    arg2 = files[2]
-    arg3 = files[1]
-    arg4 = files[3]
-    arg5 = files[0]
-    arg6 = files[5]
-    arg7 = 'gtf.txt'
-
-    """
-    python $baseDir/bin/prepare-data.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7
-    """
+      """
+      python $baseDir/bin/prepare-data.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7
+      """
 }
 
 process runGann {
@@ -72,20 +71,19 @@ process runGann {
       path "gen/*.csv"
 
     shell:
+      arg1 = files[0]
+      arg2 = files[1]
+      arg3 = files[2]
+      arg4 = files[3]
+      arg5 = files[4]
+      arg6 = files[5]
+      arg7 = files[6]
+      arg8 = files[7]
 
-    arg1 = files[0]
-    arg2 = files[1]
-    arg3 = files[2]
-    arg4 = files[3]
-    arg5 = files[4]
-    arg6 = files[5]
-    arg7 = files[6]
-    arg8 = files[7]
-
-    """
-    mkdir gen logs
-    python $baseDir/bin/gann.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7 $arg8 ${params.epochs} ${params.writeFreq}
-    """
+      """
+      mkdir gen logs
+      python $baseDir/bin/gann.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7 $arg8 ${params.epochs} ${params.writeFreq}
+      """
 }
 
 /*------------------------------------------------------------------------------------*/

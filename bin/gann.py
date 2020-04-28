@@ -27,6 +27,9 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
+print("Num CPUs Available: ", len(tf.config.experimental.list_physical_devices('CPU')))
+print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+
 
 # Setup paths
 #train_feature_path = 'tpm_combined.csv'
@@ -64,9 +67,9 @@ df_training_data = pd.read_csv(train_feature_path, header=None)
 
 df_gene_names.columns = ['gene_name']
 
-print(df_gene_names.shape)
-print(df_cell_names.shape)
-print(df_training_data.shape)
+#print(df_gene_names.shape)
+#print(df_cell_names.shape)
+#print(df_training_data.shape)
 
 df_training_data_nonorm = pd.read_csv(train_nonorm_path)
 df_training_data_nonorm = df_training_data_nonorm.drop('gene_name', axis=1)
@@ -75,8 +78,8 @@ nonorm_max = df_training_data_nonorm.max().max()
 nonorm_min = df_training_data_nonorm.min().min()
 del df_training_data_nonorm
 
-print(nonorm_max)
-print(nonorm_min)
+#print(nonorm_max)
+#print(nonorm_min)
 
 
 # Load test data
@@ -84,9 +87,9 @@ df_gene_names_test = pd.read_csv(test_gene_name_path, header=None)
 df_cell_names_test = pd.read_csv(test_cell_name_path, header=None)
 df_test_data = pd.read_csv(test_feature_path, header=None)
 
-print(df_gene_names_test.shape)
-print(df_cell_names_test.shape)
-print(df_test_data.shape)
+#print(df_gene_names_test.shape)
+#print(df_cell_names_test.shape)
+#print(df_test_data.shape)
 
 
 # The number of genes in the input dataset determines the generator output as well as the dicriminator inputs
@@ -131,11 +134,11 @@ WRITE_FREQ = int(sys.argv[10])
 # Create tensors from training data - Convert to Int32 for better work on GPU with batch and shuffle
 
 train_dataset = tf.data.Dataset.from_tensor_slices(df_training_data.T.values.astype('float32')).shuffle(TRAIN_BUFFER_SIZE).batch(TRAIN_BATCH_SIZE)
-print(train_dataset)
+#print(train_dataset)
 
 
 test_dataset = tf.data.Dataset.from_tensor_slices(df_test_data.T.values.astype('float32')).shuffle(TEST_BUFFER_SIZE).batch(TEST_BATCH_SIZE)
-print(test_dataset)
+#print(test_dataset)
 
 
 # ## Define GANN model
