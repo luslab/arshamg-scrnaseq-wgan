@@ -1,5 +1,7 @@
 #!/bin/sh
 
+export TERM=xterm
+
 ## LOAD REQUIRED MODULES
 ml purge
 ml Nextflow/20.01.0
