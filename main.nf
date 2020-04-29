@@ -19,6 +19,27 @@ nextflow.preview.dsl=2
 params.epochs = 2
 params.writeFreq = 1
 
+staticDownloadPaths = [
+  "${params.downloadDataDir}GSE67602_Joost_et_al_expression.txt",
+  "${params.downloadDataDir}GSE90848_Ana6_basal_hair_bulb_TPM.txt",
+  "${params.downloadDataDir}GSE90848_Tel_Ana1_Ana2_bulge_HG_basal_HB_TPM.txt",
+  "${params.downloadDataDir}GSE99989_NCA_BCatenin_TPM_matrix.csv",
+  "${params.downloadDataDir}Mus_musculus.GRCm38.99.gtf",
+  "${params.downloadDataDir}gene_names.tsv",
+  "${params.downloadDataDir}gtf.txt"
+]
+
+staticPreparePaths = [
+  "${params.prepareDataDir}tpm_combined.csv",
+  "${params.prepareDataDir}tpm_combined_cols.csv",
+  "${params.prepareDataDir}tpm_combined_cols_test.csv",
+  "${params.prepareDataDir}tpm_combined_rows.csv",
+  "${params.prepareDataDir}tpm_combined_rows_test.csv",
+  "${params.prepareDataDir}tpm_combined_test.csv",
+  "${params.prepareDataDir}tpm_combined_test_nonorm.csv",
+  "${params.prepareDataDir}tpm_combined_train_nonorm.csv"
+]
+
 /*------------------------------------------------------------------------------------*/
 /* Processes
 --------------------------------------------------------------------------------------*/
@@ -81,7 +102,6 @@ process runGann {
       arg8 = files[7]
 
       """
-      echo test
       mkdir gen logs
       python $baseDir/bin/gann.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7 $arg8 ${params.epochs} ${params.writeFreq}
       """
@@ -91,15 +111,39 @@ process runGann {
 
 // Run workflow
 workflow {
+    // Create channels for static data
+    if(params.downloadDataDir) {
+      Channel
+      .from(staticDownloadPaths)
+      .set {ch_static_download}
+    }
 
+    if(params.prepareDataDir) {
+      Channel
+      .from(staticPreparePaths)
+      .set {ch_static_prepare}
+    }
+    
     // Download data
-    download()
+    if(!params.downloadDataDir) {
+      download()
+    }
 
     // Prepare data
-    prepareData( download.out.collect() )
+    if(!params.downloadDataDir) {
+      prepareData( download.out.collect() )
+    }
+    else if (!params.prepareDataDir) {
+      prepareData( ch_static_download.collect() )
+    }
 
     // run gann
-    runGann( prepareData.out.collect() )
+    if(!params.prepareDataDir) {
+      runGann( prepareData.out.collect() )
+    }
+    else {
+      runGann( ch_static_prepare.collect() )
+    }
 }
 
 workflow.onComplete {
