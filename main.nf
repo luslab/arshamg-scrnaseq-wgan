@@ -103,7 +103,6 @@ process runGann {
 
       """
       mkdir gen logs
-      nvidia-smi
       python $baseDir/bin/gann.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7 $arg8 ${params.epochs} ${params.writeFreq}
       """
 }
