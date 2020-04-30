@@ -16,8 +16,8 @@ nextflow.preview.dsl=2
 /* Params
 --------------------------------------------------------------------------------------*/
 
-params.epochs = 2
-params.writeFreq = 1
+params.epochs = 10
+params.writeFreq = 10
 
 staticDownloadPaths = [
   "${params.downloadDataDir}GSE67602_Joost_et_al_expression.txt",

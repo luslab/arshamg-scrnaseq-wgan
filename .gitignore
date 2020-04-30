@@ -7,3 +7,4 @@ jupyter/training_checkpoints/
 .nextflow*
 work/
 results/
+.vscode/.ropeproject/

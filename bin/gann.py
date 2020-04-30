@@ -1,20 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # GANN - CHECK SPELLING
-# 
-# ## Setup
-# 
-# Load modules
 
-
-# Load the TensorBoard notebook extension
-#get_ipython().run_line_magic('load_ext', 'tensorboard')
-
-# Clear any logs from previous runs
-#get_ipython().system('rm -rf ./logs/ ')
-
-
+# Load libs
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
@@ -27,9 +15,16 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
+# log the number of resources available in tensor flow
 print("Num CPUs Available: ", len(tf.config.experimental.list_physical_devices('CPU')))
 print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 
+# Log start
+print("Initializing...")
+
+########################################################################################
+# INIT & LOAD
+########################################################################################
 
 # Setup paths
 #train_feature_path = 'tpm_combined.csv'
@@ -40,15 +35,7 @@ print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('
 #test_cell_name_path = 'tpm_combined_cols_test.csv'
 #train_nonorm_path = 'tpm_combined_train_nonorm.csv'
 
-#tpm_combined.csv, 
-#tpm_combined_cols.csv, 
-#tpm_combined_cols_test.csv,
-#tpm_combined_rows.csv,
-#tpm_combined_rows_test.csv, /
-#tpm_combined_test.csv, 
-#tpm_combined_test_nonorm.csv,
-#tpm_combined_train_nonorm.csv]
-
+# Setup paths
 train_feature_path = sys.argv[1]
 train_gene_name_path = sys.argv[4]
 train_cell_name_path = sys.argv[2]
@@ -57,48 +44,34 @@ test_gene_name_path = sys.argv[5]
 test_cell_name_path = sys.argv[3]
 train_nonorm_path = sys.argv[8]
 
-# ## Load data
-# 
-# Load datasets into frames and check all the shapes match up
-
+# Load training data in using pandas
 df_gene_names = pd.read_csv(train_gene_name_path, header=None)
 df_cell_names = pd.read_csv(train_cell_name_path, header=None)
 df_training_data = pd.read_csv(train_feature_path, header=None)
-
-df_gene_names.columns = ['gene_name']
-
-#print(df_gene_names.shape)
-#print(df_cell_names.shape)
-#print(df_training_data.shape)
-
 df_training_data_nonorm = pd.read_csv(train_nonorm_path)
-df_training_data_nonorm = df_training_data_nonorm.drop('gene_name', axis=1)
 
-nonorm_max = df_training_data_nonorm.max().max()
-nonorm_min = df_training_data_nonorm.min().min()
-del df_training_data_nonorm
-
-#print(nonorm_max)
-#print(nonorm_min)
-
-
-# Load test data
+# Load test data in using pandas
 df_gene_names_test = pd.read_csv(test_gene_name_path, header=None)
 df_cell_names_test = pd.read_csv(test_cell_name_path, header=None)
 df_test_data = pd.read_csv(test_feature_path, header=None)
 
-#print(df_gene_names_test.shape)
-#print(df_cell_names_test.shape)
-#print(df_test_data.shape)
+# Do some column corrections
+df_gene_names.columns = ['gene_name']
+df_training_data_nonorm = df_training_data_nonorm.drop('gene_name', axis=1)
 
+# Find the min/max of the unnormalised data set that the generated examples can be scaled to
+nonorm_max = df_training_data_nonorm.max().max()
+nonorm_min = df_training_data_nonorm.min().min()
+del df_training_data_nonorm
 
-# The number of genes in the input dataset determines the generator output as well as the dicriminator inputs
+# The number of genes in the input dataset determines the 
+# generator output as well as the discriminator input sizes
 num_genes = df_gene_names.shape[0]
-df_gene_names.shape
 
-# ## Define model variables
+########################################################################################
+# MODEL PARAMS
+########################################################################################
 
-# Model params
 LATENT_VARIABLE_SIZE = 100
 GEN_L1_DENSE_SIZE = 600
 GEN_L2_DENSE_SIZE = 600
@@ -129,21 +102,24 @@ WRITE_FREQ = 100
 EPOCHS = int(sys.argv[9])
 WRITE_FREQ = int(sys.argv[10])
 
-# ## Create training and test datasets
-# 
+########################################################################################
+# TENSORFLOW INIT
+########################################################################################
+
 # Create tensors from training data - Convert to Int32 for better work on GPU with batch and shuffle
-
 train_dataset = tf.data.Dataset.from_tensor_slices(df_training_data.T.values.astype('float32')).shuffle(TRAIN_BUFFER_SIZE).batch(TRAIN_BATCH_SIZE)
-#print(train_dataset)
 
-
+# Create tensors from test data - Convert to Int32 for better work on GPU with batch and shuffle
 test_dataset = tf.data.Dataset.from_tensor_slices(df_test_data.T.values.astype('float32')).shuffle(TEST_BUFFER_SIZE).batch(TEST_BATCH_SIZE)
-#print(test_dataset)
 
+# This method returns a helper function to compute cross entropy loss
+cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
-# ## Define GANN model
-# 
-# Define function for contructing the generator
+########################################################################################
+# DEFINE FUNCTIONS
+########################################################################################
+
+# Define function for constructing the generator
 def create_generator():
     model = tf.keras.Sequential()
     
@@ -167,7 +143,6 @@ def create_generator():
     
     return model
 
-
 # Define function for constructing discriminator
 def create_discriminator():
     model = tf.keras.Sequential()
@@ -188,7 +163,6 @@ def create_discriminator():
     
     return model
 
-
 # Define the noise generation function
 def gen_noise(batch_size):
     # Create some random noise for the generator
@@ -199,10 +173,6 @@ def gen_noise(batch_size):
 
 
 # Define the loss functions
-
-# This method returns a helper function to compute cross entropy loss
-cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-
 def discriminator_loss(real_output, fake_output):
     real_loss = cross_entropy(tf.ones_like(real_output), real_output)
     fake_loss = cross_entropy(tf.zeros_like(fake_output), fake_output)
@@ -212,14 +182,15 @@ def discriminator_loss(real_output, fake_output):
     #total_loss = tf.reduce_mean(real_output) - tf.reduce_mean(fake_output)
     #return total_loss
 
-def generator_loss(fake_output):
+def real_loss(real_output):
+    return cross_entropy(tf.ones_like(real_output), real_output)
+
+def fake_loss(fake_output):
     return cross_entropy(tf.ones_like(fake_output), fake_output)
     #total_loss = -tf.reduce_mean(fake_output)
     #return total_loss
 
-
-# Util functions
-
+# This generates real scaled data from the generator
 def data_frame_from_gen(profile, label):
     # Create formatted dataframe from generator result
     df_gen_prof = pd.DataFrame(generated_profile.numpy()).T
@@ -243,48 +214,61 @@ def data_frame_from_gen(profile, label):
     
     return df_gen_prof
 
-
-# ## Define the training loops
-
+# DEFINE TRAINING LOOP
 # Input is a batch of real cell profiles from the training set
 # @tf.function
 def train_step(cell_profiles):
+
+    # Generate noise
     noise = gen_noise(GEN_BATCH_SIZE)
     
+    # Record gradients
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+
+        # Generate some fake profiles using noise
         generated_profiles = generator(noise, training=True)
         
+        # Pass the real profiles and the fake profiles through the disc
         real_output = discriminator(cell_profiles, training=True)
         fake_output = discriminator(generated_profiles, training=True)
 
-        gen_loss = generator_loss(fake_output)
-        disc_loss = discriminator_loss(real_output, fake_output)
+        # Calc losses (some used for training, others for visualizing on tensorboard)
+        floss = fake_loss(fake_output)
+        rloss = real_loss(real_output)
+        dloss = discriminator_loss(real_output, fake_output)
         
-        met_gen_loss(gen_loss)
-        met_disc_loss(disc_loss)
-        
-    gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
-    gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
+        # Record losses for tensorboard
+        met_fake_loss(floss)
+        met_real_loss(rloss)
+        met_disc_loss(dloss)
 
+        # Record accuracy for tensorboard
+        met_fake_acc(tf.reduce_mean(fake_output))
+        met_real_acc(tf.reduce_mean(real_output))
+    
+    # Save the gradients
+    gradients_of_generator = gen_tape.gradient(floss, generator.trainable_variables)
+    gradients_of_discriminator = disc_tape.gradient(dloss, discriminator.trainable_variables)
+
+    # Apply the gradients
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
     
     return
 
+########################################################################################
+# INITIALISE NN MODEL
+########################################################################################
 
-# ## Create GANN model
-# 
 # Create generator and discriminator
 generator = create_generator()
 discriminator = create_discriminator()
-
 
 # Define optimizer
 generator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07)
 discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07)
 
-
-# ## Create checkpoints
+# Create checkpoints
 checkpoint_dir = './training_checkpoints'
 checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
 checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
@@ -292,38 +276,49 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  generator=generator,
                                  discriminator=discriminator)
 
-
-# ## Generate from test data to check network
-# Generate a single test set
+# Generate a single test set and write to file
 noise = gen_noise(EX_GEN_BATCH_SIZE)
 generated_profile = generator(noise, training=False)
 df_gen_prof_1 = data_frame_from_gen(generated_profile, 'gencell_ep0_')
 
-# ## Train the GANN
-# 
 # Define tensorboard metrics
-met_gen_loss = tf.keras.metrics.Mean('gen_loss', dtype=tf.float32)
+met_fake_loss = tf.keras.metrics.Mean('fake_loss', dtype=tf.float32)
+met_real_loss = tf.keras.metrics.Mean('real_loss', dtype=tf.float32)
 met_disc_loss = tf.keras.metrics.Mean('disc_loss', dtype=tf.float32)
 met_test_loss = tf.keras.metrics.Mean('test_loss', dtype=tf.float32)
 
+met_fake_acc = tf.keras.metrics.Mean('fake_acc', dtype=tf.float32)
+met_real_acc = tf.keras.metrics.Mean('real_acc', dtype=tf.float32) 
+#met_fake_acc = tf.keras.metrics.BinaryAccuracy()('fake_acc', dtype=tf.float32)
+#met_real_acc = tf.keras.metrics.Accuracy('real_acc', dtype=tf.float32) 
 
-# Create log directories
+# Create log directories and tensor board summaries
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-gen_log_dir = 'logs/gradient_tape/' + current_time + '/gen_train'
+fake_log_dir = 'logs/gradient_tape/' + current_time + '/fake_train'
+real_log_dir = 'logs/gradient_tape/' + current_time + '/real_train'
 disc_log_dir = 'logs/gradient_tape/' + current_time + '/disc_train'
 test_log_dir = 'logs/gradient_tape/' + current_time + '/disc_test'
 all_log_dir = 'logs/gradient_tape/' + current_time + '/all'
+realacc_log_dir = 'logs/gradient_tape/' + current_time + '/real_acc'
+fakeacc_log_dir = 'logs/gradient_tape/' + current_time + '/fake_acc'
 
 all_summary_writer = tf.summary.create_file_writer(all_log_dir)
-gen_summary_writer = tf.summary.create_file_writer(gen_log_dir)
+fake_summary_writer = tf.summary.create_file_writer(fake_log_dir)
+real_summary_writer = tf.summary.create_file_writer(real_log_dir)
 disc_summary_writer = tf.summary.create_file_writer(disc_log_dir)
 test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+realacc_summary_writer = tf.summary.create_file_writer(realacc_log_dir)
+fakeacc_summary_writer = tf.summary.create_file_writer(fakeacc_log_dir)
 
+########################################################################################
+# MAIN LOOP
+########################################################################################
 
 # Run the training model
 print('Running...')
 
+# Loop
 for epoch in range(EPOCHS):
     
     # Save checkpoints and gen example data
@@ -339,49 +334,65 @@ for epoch in range(EPOCHS):
     # Logging
     start = time.time()
     
-    #Train the epoch
+    # Train the epoch
     for data_batch in train_dataset:
         train_step(data_batch)
         
-    #Run test data through discriminator
+    # Run test data through discriminator
     for data_batch in test_dataset:
         test_decision = discriminator(data_batch, training=False)
 
+    # Assess test loss
     test_loss = cross_entropy(tf.ones_like(test_decision), test_decision)
     met_test_loss(test_loss)
     
-    #Log metrics
+    # Log metrics
     with all_summary_writer.as_default():
-        tf.summary.scalar('2_gen_loss', met_gen_loss.result(), step=epoch)
-        tf.summary.scalar('3_disc_loss', met_disc_loss.result(), step=epoch)
-        tf.summary.scalar('3_test_loss', met_test_loss.result(), step=epoch)
+        tf.summary.scalar('3_real_loss', met_fake_loss.result(), step=epoch)
+        tf.summary.scalar('4_fake_loss', met_real_loss.result(), step=epoch)
+        tf.summary.scalar('5_disc_loss', met_disc_loss.result(), step=epoch)
+        tf.summary.scalar('6_real_acc', met_real_acc.result(), step=epoch)
+        tf.summary.scalar('7_fake_acc', met_fake_acc.result(), step=epoch)
     
-    with gen_summary_writer.as_default():
-        tf.summary.scalar('1_loss', met_gen_loss.result(), step=epoch)
+    with fake_summary_writer.as_default():
+        tf.summary.scalar('1_loss', met_fake_loss.result(), step=epoch)
+
+    with real_summary_writer.as_default():
+        tf.summary.scalar('1_loss', met_real_loss.result(), step=epoch)
            
     with disc_summary_writer.as_default():
         tf.summary.scalar('1_loss', met_disc_loss.result(), step=epoch)
     
-    with test_summary_writer.as_default():
-        tf.summary.scalar('1_loss', met_test_loss.result(), step=epoch)
+    #with test_summary_writer.as_default():
+    #    tf.summary.scalar('1_loss', met_test_loss.result(), step=epoch)
+
+    with realacc_summary_writer.as_default():
+        tf.summary.scalar('2_acc', met_real_acc.result(), step=epoch)
+    
+    with fakeacc_summary_writer.as_default():
+        tf.summary.scalar('2_acc', met_fake_acc.result(), step=epoch)
 
     # Logging
     #print ('Time for epoch {} is {} sec.'.format(epoch + 1, time.time()-start))
     time.time()
       
-    #Log stats
-    template = 'Epoch {}, Gen_loss: {}, Disc_loss: {}, Test_loss: {}'
+    # Log stats
+    template = 'Epoch {}, Fake_loss: {}, Real_loss: {}, Disc_loss: {}, Test_loss: {}'
     print (template.format(epoch+1,
-                           met_gen_loss.result(), 
+                           met_fake_loss.result(),
+                           met_real_loss.result(),
                            met_disc_loss.result(),
                            met_test_loss.result()))
     
     # Reset metrics every epoch
-    met_gen_loss.reset_states()
+    met_fake_loss.reset_states()
+    met_real_loss.reset_states()
     met_disc_loss.reset_states()
     met_test_loss.reset_states()
+    met_real_acc.reset_states()
+    met_fake_acc.reset_states()
     
-# Generate a profile set
+# Generate a profile set at the end after the loop finishes
 noise = gen_noise(EX_GEN_BATCH_SIZE)
 generated_profile = generator(noise, training=False)
 df_gen_prof = data_frame_from_gen(generated_profile, 'gencell_ep' + str(EPOCHS) + '_')
