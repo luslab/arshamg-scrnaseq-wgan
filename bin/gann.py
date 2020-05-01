@@ -348,8 +348,8 @@ for epoch in range(EPOCHS):
     
     # Log metrics
     with all_summary_writer.as_default():
-        tf.summary.scalar('3_real_loss', met_fake_loss.result(), step=epoch)
-        tf.summary.scalar('4_fake_loss', met_real_loss.result(), step=epoch)
+        tf.summary.scalar('3_real_loss', met_real_loss.result(), step=epoch)
+        tf.summary.scalar('4_fake_loss', met_fake_loss.result(), step=epoch)
         tf.summary.scalar('5_disc_loss', met_disc_loss.result(), step=epoch)
         tf.summary.scalar('6_real_acc', met_real_acc.result(), step=epoch)
         tf.summary.scalar('7_fake_acc', met_fake_acc.result(), step=epoch)
