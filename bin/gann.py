@@ -92,8 +92,8 @@ TEST_BUFFER_SIZE = 500
 GEN_BATCH_SIZE = 10
 EPOCHS = 10
 
-LEARNING_RATE = 0.001
-#LEARNING_RATE = 1e-5
+#LEARNING_RATE = 0.001
+LEARNING_RATE = 1e-5
 
 EX_GEN_BATCH_SIZE = 500
 WRITE_FREQ = 100
@@ -125,19 +125,19 @@ def create_generator():
     
     #L1
     model.add(layers.Dense(GEN_L1_DENSE_SIZE, use_bias=False, input_shape=(LATENT_VARIABLE_SIZE,)))
-    #model.add(layers.BatchNormalization())
+    model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
     #assert model.output_shape == (None, GEN_L1_DENSE_SIZE, 1)  # Note: None is the batch size
     
     #L2
     model.add(layers.Dense(GEN_L2_DENSE_SIZE, use_bias=False))
-    #model.add(layers.BatchNormalization())
+    model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
     #assert model.output_shape == (None, GEN_L2_DENSE_SIZE, 1)
     
     #L3
     model.add(layers.Dense(GEN_L3_DENSE_SIZE, use_bias=False))
-    #model.add(layers.BatchNormalization())
+    model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
     #assert model.output_shape == (None, GEN_L3_DENSE_SIZE, 1)
     
@@ -150,12 +150,12 @@ def create_discriminator():
     #L1
     model.add(layers.Dense(DIS_L1_DENSE_SIZE, use_bias=False, input_shape=(DIS_INPUT_SIZE,)))
     model.add(layers.LeakyReLU())
-    #model.add(layers.Dropout(0.3))
+    model.add(layers.Dropout(0.3))
     
     #L2
     model.add(layers.Dense(DIS_L2_DENSE_SIZE, use_bias=False))
     model.add(layers.LeakyReLU())
-    #model.add(layers.Dropout(0.3))
+    model.add(layers.Dropout(0.3))
     
     #L3
     model.add(layers.Flatten())
