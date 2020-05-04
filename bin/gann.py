@@ -93,7 +93,8 @@ GEN_BATCH_SIZE = 10
 EPOCHS = 10
 
 #LEARNING_RATE = 0.001
-LEARNING_RATE = 1e-5
+#LEARNING_RATE = 1e-5
+LEARNING_RATE = 5e-5
 
 EX_GEN_BATCH_SIZE = 500
 WRITE_FREQ = 100
@@ -174,21 +175,19 @@ def gen_noise(batch_size):
 
 # Define the loss functions
 def discriminator_loss(real_output, fake_output):
-    real_loss = cross_entropy(tf.ones_like(real_output), real_output)
-    fake_loss = cross_entropy(tf.zeros_like(fake_output), fake_output)
-    total_loss = real_loss + fake_loss
-    return total_loss
-    
-    #total_loss = tf.reduce_mean(real_output) - tf.reduce_mean(fake_output)
+    #real_loss = cross_entropy(tf.ones_like(real_output), real_output)
+    #fake_loss = cross_entropy(tf.zeros_like(fake_output), fake_output)
+    #total_loss = real_loss + fake_loss
     #return total_loss
+    
+    return tf.reduce_mean(real_output) - tf.reduce_mean(fake_output)
 
 def real_loss(real_output):
     return cross_entropy(tf.ones_like(real_output), real_output)
 
 def fake_loss(fake_output):
-    return cross_entropy(tf.ones_like(fake_output), fake_output)
-    #total_loss = -tf.reduce_mean(fake_output)
-    #return total_loss
+    #return cross_entropy(tf.ones_like(fake_output), fake_output)
+    return - tf.reduce_mean(fake_output)
 
 # This generates real scaled data from the generator
 def data_frame_from_gen(profile, label):
@@ -253,6 +252,9 @@ def train_step(cell_profiles):
     # Apply the gradients
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
+
+    # Clip the weights
+    clip_v = [v.assign((tf.clip_by_value(v, -0.01, 0.01))) for v in discriminator.trainable_variables]
     
     return
 
@@ -265,8 +267,10 @@ generator = create_generator()
 discriminator = create_discriminator()
 
 # Define optimizer
-generator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07)
-discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07)
+#generator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07)
+#discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07)
+generator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=LEARNING_RATE)
+discriminator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=LEARNING_RATE)
 
 # Create checkpoints
 checkpoint_dir = './training_checkpoints'

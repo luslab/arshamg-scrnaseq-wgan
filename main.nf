@@ -6,6 +6,8 @@
 ----------------------------------------------------------------------------------------
 */
 
+// nextflow main.nf -profile docker --downloadDataDir "/Users/cheshic/dev/repos/arshamg-scrnaseq-wgan/data/" --prepareDataDir "/Users/cheshic/dev/repos/arshamg-scrnaseq-wgan/data/"
+
 // Define DSL2
 nextflow.preview.dsl=2
 
