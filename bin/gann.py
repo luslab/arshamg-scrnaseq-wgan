@@ -127,17 +127,17 @@ def create_generator():
     
     #L1
     model.add(layers.Dense(GEN_L1_DENSE_SIZE, use_bias=False, input_shape=(LATENT_VARIABLE_SIZE,)))
-    #model.add(layers.BatchNormalization())
+    model.add(layers.LayerNormalization(epsilon=1e-6))
     model.add(layers.LeakyReLU())
     
     #L2
     model.add(layers.Dense(GEN_L2_DENSE_SIZE, use_bias=False))
-    #model.add(layers.BatchNormalization())
+    model.add(layers.LayerNormalization(epsilon=1e-6))
     model.add(layers.LeakyReLU())
     
     #L3
     model.add(layers.Dense(GEN_L3_DENSE_SIZE, use_bias=False))
-    #model.add(layers.BatchNormalization())
+    model.add(layers.LayerNormalization(epsilon=1e-6))
     model.add(layers.LeakyReLU())
     
     return model
@@ -148,13 +148,13 @@ def create_discriminator():
     
     #L1
     model.add(layers.Dense(DIS_L1_DENSE_SIZE, use_bias=False, input_shape=(DIS_INPUT_SIZE,)))
-    #model.add(layers.BatchNormalization())
+    model.add(layers.LayerNormalization(epsilon=1e-6))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.3))
     
     #L2
     model.add(layers.Dense(DIS_L2_DENSE_SIZE, use_bias=False))
-    #model.add(layers.BatchNormalization())
+    model.add(layers.LayerNormalization(epsilon=1e-6))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.3))
     
