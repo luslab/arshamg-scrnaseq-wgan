@@ -85,16 +85,17 @@ NOISE_STDEV = 0.1
 POISSON_LAM = 1
 
 # Training params
-TRAIN_BATCH_SIZE = 10
+TRAIN_BATCH_SIZE = 32
+GEN_BATCH_SIZE = 32
 TRAIN_BUFFER_SIZE = 10000
 TEST_BATCH_SIZE = 500
 TEST_BUFFER_SIZE = 500
-GEN_BATCH_SIZE = 10
 EPOCHS = 10
 
 #LEARNING_RATE = 0.001
 #LEARNING_RATE = 1e-5
 LEARNING_RATE = 5e-5
+GP_LAMBDA = 10
 
 EX_GEN_BATCH_SIZE = 500
 WRITE_FREQ = 100
@@ -108,10 +109,10 @@ WRITE_FREQ = int(sys.argv[10])
 ########################################################################################
 
 # Create tensors from training data - Convert to Int32 for better work on GPU with batch and shuffle
-train_dataset = tf.data.Dataset.from_tensor_slices(df_training_data.T.values.astype('float32')).shuffle(TRAIN_BUFFER_SIZE).batch(TRAIN_BATCH_SIZE)
+train_dataset = tf.data.Dataset.from_tensor_slices(df_training_data.T.values.astype('float32')).shuffle(TRAIN_BUFFER_SIZE).batch(TRAIN_BATCH_SIZE, drop_remainder=True)
 
 # Create tensors from test data - Convert to Int32 for better work on GPU with batch and shuffle
-test_dataset = tf.data.Dataset.from_tensor_slices(df_test_data.T.values.astype('float32')).shuffle(TEST_BUFFER_SIZE).batch(TEST_BATCH_SIZE)
+#test_dataset = tf.data.Dataset.from_tensor_slices(df_test_data.T.values.astype('float32')).shuffle(TEST_BUFFER_SIZE).batch(TEST_BATCH_SIZE)
 
 # This method returns a helper function to compute cross entropy loss
 cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
@@ -126,21 +127,18 @@ def create_generator():
     
     #L1
     model.add(layers.Dense(GEN_L1_DENSE_SIZE, use_bias=False, input_shape=(LATENT_VARIABLE_SIZE,)))
-    model.add(layers.BatchNormalization())
+    #model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
-    #assert model.output_shape == (None, GEN_L1_DENSE_SIZE, 1)  # Note: None is the batch size
     
     #L2
     model.add(layers.Dense(GEN_L2_DENSE_SIZE, use_bias=False))
-    model.add(layers.BatchNormalization())
+    #model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
-    #assert model.output_shape == (None, GEN_L2_DENSE_SIZE, 1)
     
     #L3
     model.add(layers.Dense(GEN_L3_DENSE_SIZE, use_bias=False))
-    model.add(layers.BatchNormalization())
+    #model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
-    #assert model.output_shape == (None, GEN_L3_DENSE_SIZE, 1)
     
     return model
 
@@ -150,11 +148,13 @@ def create_discriminator():
     
     #L1
     model.add(layers.Dense(DIS_L1_DENSE_SIZE, use_bias=False, input_shape=(DIS_INPUT_SIZE,)))
+    #model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.3))
     
     #L2
     model.add(layers.Dense(DIS_L2_DENSE_SIZE, use_bias=False))
+    #model.add(layers.BatchNormalization())
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.3))
     
@@ -180,7 +180,7 @@ def discriminator_loss(real_output, fake_output):
     #total_loss = real_loss + fake_loss
     #return total_loss
     
-    return tf.reduce_mean(real_output) - tf.reduce_mean(fake_output)
+    return tf.reduce_mean(fake_output) - tf.reduce_mean(real_output)
 
 def real_loss(real_output):
     return cross_entropy(tf.ones_like(real_output), real_output)
@@ -213,16 +213,12 @@ def data_frame_from_gen(profile, label):
     
     return df_gen_prof
 
-# DEFINE TRAINING LOOP
-# Input is a batch of real cell profiles from the training set
-# @tf.function
+@tf.function
 def train_step(cell_profiles):
+    with tf.GradientTape(persistent=True) as tape:
 
-    # Generate noise
-    noise = gen_noise(GEN_BATCH_SIZE)
-    
-    # Record gradients
-    with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+        # Generate noise
+        noise = gen_noise(GEN_BATCH_SIZE)
 
         # Generate some fake profiles using noise
         generated_profiles = generator(noise, training=True)
@@ -235,26 +231,49 @@ def train_step(cell_profiles):
         floss = fake_loss(fake_output)
         rloss = real_loss(real_output)
         dloss = discriminator_loss(real_output, fake_output)
-        
-        # Record losses for tensorboard
-        met_fake_loss(floss)
-        met_real_loss(rloss)
-        met_disc_loss(dloss)
 
-        # Record accuracy for tensorboard
-        met_fake_acc(tf.reduce_mean(fake_output))
-        met_real_acc(tf.reduce_mean(real_output))
-    
+        # Calculate interpolated profile 
+        shape = [tf.shape(cell_profiles)[0]] + [1] * (cell_profiles.shape.ndims - 1)
+        epsilon = tf.random.uniform(shape=shape, minval=0., maxval=1.)
+        interpolated_profiles = cell_profiles + epsilon * (generated_profiles - cell_profiles)
+
+        # Run through disc with nested gradient tape
+        with tf.GradientTape(persistent=True) as tape2:
+            tape2.watch(interpolated_profiles)
+            d_interpolated = discriminator(interpolated_profiles, training=True)
+
+        # Compute gradient penalty
+        grad = tape2.gradient(d_interpolated, interpolated_profiles)
+        norm = tf.norm(tf.reshape(grad, [tf.shape(grad)[0], -1]), axis=1)
+        gradient_penalty = tf.reduce_mean((norm - 1.)**2)
+
+        # Calculate adjusted loss
+        gploss = dloss + (GP_LAMBDA * gradient_penalty)
+
     # Save the gradients
-    gradients_of_generator = gen_tape.gradient(floss, generator.trainable_variables)
-    gradients_of_discriminator = disc_tape.gradient(dloss, discriminator.trainable_variables)
+    gradients_of_generator = tape.gradient(floss, generator.trainable_variables)
+    gradients_of_discriminator = tape.gradient(gploss, discriminator.trainable_variables)
 
     # Apply the gradients
     generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
     # Clip the weights
-    clip_v = [v.assign((tf.clip_by_value(v, -0.01, 0.01))) for v in discriminator.trainable_variables]
+    #clip_v = [v.assign((tf.clip_by_value(v, -0.01, 0.01))) for v in discriminator.trainable_variables]
+                
+    # Record gradients for tensorboard
+    tf.summary.scalar("grad_penalty", gradient_penalty)
+    tf.summary.scalar("grad_norm", tf.nn.l2_loss(gradient_penalty))
+
+    # Record losses for tensorboard
+    met_fake_loss(floss)
+    met_real_loss(rloss)
+    met_disc_loss(dloss)
+    met_gp_loss(gploss)
+
+    # Record accuracy for tensorboard
+    met_fake_acc(tf.reduce_mean(fake_output))
+    met_real_acc(tf.reduce_mean(real_output))
     
     return
 
@@ -266,11 +285,14 @@ def train_step(cell_profiles):
 generator = create_generator()
 discriminator = create_discriminator()
 
+generator.summary()
+discriminator.summary()
+
 # Define optimizer
-#generator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07)
-#discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07)
-generator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=LEARNING_RATE)
-discriminator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=LEARNING_RATE)
+generator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
+discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
+#generator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=LEARNING_RATE)
+#discriminator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=LEARNING_RATE)
 
 # Create checkpoints
 checkpoint_dir = './training_checkpoints'
@@ -289,7 +311,8 @@ df_gen_prof_1 = data_frame_from_gen(generated_profile, 'gencell_ep0_')
 met_fake_loss = tf.keras.metrics.Mean('fake_loss', dtype=tf.float32)
 met_real_loss = tf.keras.metrics.Mean('real_loss', dtype=tf.float32)
 met_disc_loss = tf.keras.metrics.Mean('disc_loss', dtype=tf.float32)
-met_test_loss = tf.keras.metrics.Mean('test_loss', dtype=tf.float32)
+#met_test_loss = tf.keras.metrics.Mean('test_loss', dtype=tf.float32)
+met_gp_loss = tf.keras.metrics.Mean('met_gp_loss', dtype=tf.float32)
 
 met_fake_acc = tf.keras.metrics.Mean('fake_acc', dtype=tf.float32)
 met_real_acc = tf.keras.metrics.Mean('real_acc', dtype=tf.float32) 
@@ -302,7 +325,8 @@ current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 fake_log_dir = 'logs/gradient_tape/' + current_time + '/fake_train'
 real_log_dir = 'logs/gradient_tape/' + current_time + '/real_train'
 disc_log_dir = 'logs/gradient_tape/' + current_time + '/disc_train'
-test_log_dir = 'logs/gradient_tape/' + current_time + '/disc_test'
+#test_log_dir = 'logs/gradient_tape/' + current_time + '/disc_test'
+gp_log_dir = 'logs/gradient_tape/' + current_time + '/gp_train'
 all_log_dir = 'logs/gradient_tape/' + current_time + '/all'
 realacc_log_dir = 'logs/gradient_tape/' + current_time + '/real_acc'
 fakeacc_log_dir = 'logs/gradient_tape/' + current_time + '/fake_acc'
@@ -311,7 +335,8 @@ all_summary_writer = tf.summary.create_file_writer(all_log_dir)
 fake_summary_writer = tf.summary.create_file_writer(fake_log_dir)
 real_summary_writer = tf.summary.create_file_writer(real_log_dir)
 disc_summary_writer = tf.summary.create_file_writer(disc_log_dir)
-test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+gp_summary_writer = tf.summary.create_file_writer(gp_log_dir)
+#test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 realacc_summary_writer = tf.summary.create_file_writer(realacc_log_dir)
 fakeacc_summary_writer = tf.summary.create_file_writer(fakeacc_log_dir)
 
@@ -343,20 +368,21 @@ for epoch in range(EPOCHS):
         train_step(data_batch)
         
     # Run test data through discriminator
-    for data_batch in test_dataset:
-        test_decision = discriminator(data_batch, training=False)
+    #for data_batch in test_dataset:
+    #    test_decision = discriminator(data_batch, training=False)
 
     # Assess test loss
-    test_loss = cross_entropy(tf.ones_like(test_decision), test_decision)
-    met_test_loss(test_loss)
+    #test_loss = cross_entropy(tf.ones_like(test_decision), test_decision)
+    #met_test_loss(test_loss)
     
     # Log metrics
     with all_summary_writer.as_default():
         tf.summary.scalar('3_real_loss', met_real_loss.result(), step=epoch)
         tf.summary.scalar('4_fake_loss', met_fake_loss.result(), step=epoch)
         tf.summary.scalar('5_disc_loss', met_disc_loss.result(), step=epoch)
-        tf.summary.scalar('6_real_acc', met_real_acc.result(), step=epoch)
-        tf.summary.scalar('7_fake_acc', met_fake_acc.result(), step=epoch)
+        tf.summary.scalar('6_gp_loss', met_gp_loss.result(), step=epoch)
+        tf.summary.scalar('7_real_acc', met_real_acc.result(), step=epoch)
+        tf.summary.scalar('8_fake_acc', met_fake_acc.result(), step=epoch)
     
     with fake_summary_writer.as_default():
         tf.summary.scalar('1_loss', met_fake_loss.result(), step=epoch)
@@ -366,6 +392,9 @@ for epoch in range(EPOCHS):
            
     with disc_summary_writer.as_default():
         tf.summary.scalar('1_loss', met_disc_loss.result(), step=epoch)
+    
+    with gp_summary_writer.as_default():
+        tf.summary.scalar('1_loss', met_gp_loss.result(), step=epoch)
     
     #with test_summary_writer.as_default():
     #    tf.summary.scalar('1_loss', met_test_loss.result(), step=epoch)
@@ -381,18 +410,18 @@ for epoch in range(EPOCHS):
     time.time()
       
     # Log stats
-    template = 'Epoch {}, Fake_loss: {}, Real_loss: {}, Disc_loss: {}, Test_loss: {}'
+    template = 'Epoch {}, Fake_loss: {}, Real_loss: {}, Disc_loss: {}'
     print (template.format(epoch+1,
                            met_fake_loss.result(),
                            met_real_loss.result(),
-                           met_disc_loss.result(),
-                           met_test_loss.result()))
+                           met_disc_loss.result()))
     
     # Reset metrics every epoch
     met_fake_loss.reset_states()
     met_real_loss.reset_states()
     met_disc_loss.reset_states()
-    met_test_loss.reset_states()
+    #met_test_loss.reset_states()
+    met_gp_loss.reset_states()
     met_real_acc.reset_states()
     met_fake_acc.reset_states()
     
