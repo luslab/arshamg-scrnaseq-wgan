@@ -15,8 +15,6 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-from AMSGrad import AMSGrad
-
 # log the number of resources available in tensor flow
 print("Num CPUs Available: ", len(tf.config.experimental.list_physical_devices('CPU')))
 print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
