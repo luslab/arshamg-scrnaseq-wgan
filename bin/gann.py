@@ -15,6 +15,8 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
+from AMSGrad import AMSGrad
+
 # log the number of resources available in tensor flow
 print("Num CPUs Available: ", len(tf.config.experimental.list_physical_devices('CPU')))
 print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
@@ -285,8 +287,8 @@ generator.summary()
 discriminator.summary()
 
 # Define optimizer
-generator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
-discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
+generator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, amsgrad=True)
+discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, amsgrad=True)
 #generator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=LEARNING_RATE)
 #discriminator_optimizer = tf.keras.optimizers.RMSprop(learning_rate=LEARNING_RATE)
 
