@@ -159,9 +159,11 @@ def create_discriminator():
 # Define the noise generation function
 def gen_noise(batch_size):
     # Create some random noise for the generator
-    n_noise = tf.random.normal([batch_size, LATENT_VARIABLE_SIZE], mean=0.0, stddev=NOISE_STDEV)
-    p_noise = tf.random.poisson([batch_size, LATENT_VARIABLE_SIZE], lam=POISSON_LAM)
-    noise = tf.abs(n_noise + p_noise)
+    #n_noise = tf.random.normal([batch_size, LATENT_VARIABLE_SIZE], mean=0.0, stddev=NOISE_STDEV)
+    #p_noise = tf.random.poisson([batch_size, LATENT_VARIABLE_SIZE], lam=POISSON_LAM)
+    #noise = tf.abs(n_noise + p_noise)
+    noise = tf.random.normal([batch_size, LATENT_VARIABLE_SIZE])
+
     return noise
 
 

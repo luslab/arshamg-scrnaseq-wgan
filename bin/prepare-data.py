@@ -306,5 +306,8 @@ test_features.to_csv('tpm_combined_test.csv', index=False, header=False)
 test_df_column_names.to_csv('tpm_combined_cols_test.csv', index=False, header=False)
 test_df_row_names.to_csv('tpm_combined_rows_test.csv', index=False, header=False)
 
+train_features.to_csv('tpm_combined_wheader.csv')
+test_features.to_csv('tpm_combined_test_wheader.csv')
+
 #df_ltpm_combined_train.to_csv('tpm_combined_train_nonorm.csv')
 #df_ltpm_combined_test.to_csv('tpm_combined_test_nonorm.csv')
