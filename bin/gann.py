@@ -353,9 +353,16 @@ for epoch in range(EPOCHS):
         generated_profile = generator(noise, training=False)
         df_gen_prof = data_frame_from_gen(generated_profile, 'gencell_ep' + str(epoch) + '_')
         df_gen_prof.to_csv('gen/gen_prof_' + str(epoch) + '.csv')
+
+        # Log stats
+        #template = 'Epoch {}, Fake_loss: {}, Real_loss: {}, Disc_loss: {}'
+        #print (template.format(epoch+1,
+        #                   met_fake_loss.result(),
+        #                   met_real_loss.result(),
+        #                   met_disc_loss.result()))
     
     # Logging
-    start = time.time()
+    #start = time.time()
     
     # Train the epoch
     for data_batch in train_dataset:
@@ -401,14 +408,7 @@ for epoch in range(EPOCHS):
 
     # Logging
     #print ('Time for epoch {} is {} sec.'.format(epoch + 1, time.time()-start))
-    time.time()
-      
-    # Log stats
-    template = 'Epoch {}, Fake_loss: {}, Real_loss: {}, Disc_loss: {}'
-    print (template.format(epoch+1,
-                           met_fake_loss.result(),
-                           met_real_loss.result(),
-                           met_disc_loss.result()))
+    #time.time()
     
     # Reset metrics every epoch
     met_fake_loss.reset_states()
