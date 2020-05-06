@@ -42,13 +42,11 @@ train_cell_name_path = sys.argv[2]
 test_feature_path = sys.argv[6]
 test_gene_name_path = sys.argv[5]
 test_cell_name_path = sys.argv[3]
-train_nonorm_path = sys.argv[8]
 
 # Load training data in using pandas
 df_gene_names = pd.read_csv(train_gene_name_path, header=None)
 df_cell_names = pd.read_csv(train_cell_name_path, header=None)
 df_training_data = pd.read_csv(train_feature_path, header=None)
-df_training_data_nonorm = pd.read_csv(train_nonorm_path)
 
 # Load test data in using pandas
 df_gene_names_test = pd.read_csv(test_gene_name_path, header=None)
@@ -57,12 +55,6 @@ df_test_data = pd.read_csv(test_feature_path, header=None)
 
 # Do some column corrections
 df_gene_names.columns = ['gene_name']
-df_training_data_nonorm = df_training_data_nonorm.drop('gene_name', axis=1)
-
-# Find the min/max of the unnormalised data set that the generated examples can be scaled to
-nonorm_max = df_training_data_nonorm.max().max()
-nonorm_min = df_training_data_nonorm.min().min()
-del df_training_data_nonorm
 
 # The number of genes in the input dataset determines the 
 # generator output as well as the discriminator input sizes
@@ -101,8 +93,8 @@ EX_GEN_BATCH_SIZE = 500
 WRITE_FREQ = 100
 
 # Get ext param
-EPOCHS = int(sys.argv[9])
-WRITE_FREQ = int(sys.argv[10])
+EPOCHS = int(sys.argv[7])
+WRITE_FREQ = int(sys.argv[8])
 
 ########################################################################################
 # TENSORFLOW INIT
@@ -202,14 +194,16 @@ def data_frame_from_gen(profile, label):
     gen_min = df_gen_prof.min().min()
     gen_max = df_gen_prof.max().max()
 
+    print('Generated prof min/max ' + str(gen_min) + ' - ' + str(gen_max))
+
     # Scale everything up to 0
-    df_gen_prof = df_gen_prof + (gen_min*-1)
-    gen_max = df_gen_prof.max().max()
-    gen_min = df_gen_prof.min().min()
+    #df_gen_prof = df_gen_prof + (gen_min*-1)
+    #gen_max = df_gen_prof.max().max()
+    #gen_min = df_gen_prof.min().min()
 
     # Rescale to between real world min maxes
-    df_gen_prof = df_gen_prof / gen_max
-    df_gen_prof = df_gen_prof * nonorm_max
+    #df_gen_prof = df_gen_prof / gen_max
+    #df_gen_prof = df_gen_prof * nonorm_max
     
     return df_gen_prof
 
@@ -262,8 +256,8 @@ def train_step(cell_profiles):
     #clip_v = [v.assign((tf.clip_by_value(v, -0.01, 0.01))) for v in discriminator.trainable_variables]
                 
     # Record gradients for tensorboard
-    tf.summary.scalar("grad_penalty", gradient_penalty)
-    tf.summary.scalar("grad_norm", tf.nn.l2_loss(gradient_penalty))
+    #tf.summary.scalar("grad_penalty", gradient_penalty)
+   # tf.summary.scalar("grad_norm", tf.nn.l2_loss(gradient_penalty))
 
     # Record losses for tensorboard
     met_fake_loss(floss)

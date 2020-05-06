@@ -37,9 +37,7 @@ staticPreparePaths = [
   "${params.prepareDataDir}tpm_combined_cols_test.csv",
   "${params.prepareDataDir}tpm_combined_rows.csv",
   "${params.prepareDataDir}tpm_combined_rows_test.csv",
-  "${params.prepareDataDir}tpm_combined_test.csv",
-  "${params.prepareDataDir}tpm_combined_test_nonorm.csv",
-  "${params.prepareDataDir}tpm_combined_train_nonorm.csv"
+  "${params.prepareDataDir}tpm_combined_test.csv"
 ]
 
 /*------------------------------------------------------------------------------------*/
@@ -100,12 +98,10 @@ process runGann {
       arg4 = files[3]
       arg5 = files[4]
       arg6 = files[5]
-      arg7 = files[6]
-      arg8 = files[7]
 
       """
       mkdir gen logs
-      python $baseDir/bin/gann.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7 $arg8 ${params.epochs} ${params.writeFreq}
+      python $baseDir/bin/gann.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 ${params.epochs} ${params.writeFreq}
       """
 }
 

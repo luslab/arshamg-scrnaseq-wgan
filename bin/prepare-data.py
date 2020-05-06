@@ -94,7 +94,6 @@ print_rowcol('Loaded Yang1', df_tpm_1)
 
 
 # Clean the yang1 dataset to get the gene names, call `.shape` to check we havent filtered anything
-
 # Split gene ids on _ and load into a new data frame and set the columns
 split_data = pd.DataFrame(df_tpm_1.Gene_id.str.split("_", expand=True))
 split_data.columns = ["Gene_id", "Gene_name", "Gene_name2"]
@@ -109,23 +108,19 @@ print_rowcol('Filter check', split_data)
 
 
 # Write the gene names back into the main dataset, print out dataset to check we do indeed have gene names where they were available
-
 # Insert the columns back into the main data array
 df_tpm_1["Gene_id"] = split_data.Gene_id
 df_tpm_1.insert(1,"Gene_name", split_data.Gene_name)
 
 
 # Set gene name to index after checking it is unique
-
 df_tpm_1.index = df_tpm_1['Gene_id']
 df_tpm_1 = df_tpm_1.drop('Gene_id', axis=1)
 df_tpm_1 = df_tpm_1.drop('Gene_name', axis=1)
 
 # Load in Yang2 
-
 df_tpm_2 = pd.read_csv(tpm_yang_path2, sep='\t')
 print_rowcol('Loaded Yang2', df_tpm_2)
-
 
 # Split gene ids on _ and load into a new data frame and set the columns
 split_data = pd.DataFrame(df_tpm_2.Gene_id.str.split("_", expand=True))
@@ -146,7 +141,6 @@ df_tpm_2.insert(1,"Gene_name", split_data.Gene_name)
 
 
 # Set gene name to index after checking it is unique
-
 df_tpm_2.index = df_tpm_2['Gene_id']
 df_tpm_2 = df_tpm_2.drop('Gene_id', axis=1)
 df_tpm_2 = df_tpm_2.drop('Gene_name', axis=1)
@@ -161,22 +155,13 @@ print_rowcol('Loaded Kasper', df_rpk)
 # ### Convert from FPKM (Fragments Per Kilobase Million) to TPM (Transcripts Per Kilobase Million)
 # 
 # Rename gene/cell column
-
-
 df_rpk.rename( columns={'Gene\Cell':'gene_name'}, inplace=True)
 
 
 # Set gene to index after checking unique
-
-
-
 df_rpk.index = df_rpk['gene_name']
 
-
 # Insert gene_id into data
-
-
-
 df_rpk_merged = df_rpk
 df_rpk_merged = df_rpk_merged.drop('gene_name', axis=1)
 df_rpk_merged = df_gene_name2id.join(df_rpk_merged, lsuffix='', rsuffix='', how='inner')
@@ -186,47 +171,36 @@ print_rowcol('Shape after merging gene ids', df_rpk_merged)
 
 
 # Get length of each gene into data frame
-
 df_rpk_merged_len = df_gtf_transcript_len.join(df_rpk_merged, lsuffix='', rsuffix='', how='inner')
 print_rowcol('Shape after merging gene feature_len', df_rpk_merged_len)
 
 # Sum the read counts per sample
-
 df_scaling_factor = pd.DataFrame(df_rpk_merged_len.sum(axis=0) / 1000000)
 df_scaling_factor.columns = ['scaling_factor']
 df_scaling_factor = df_scaling_factor.drop('feature_len')
 
 
 # Divide the read counts by the length of each gene in kilobases. This gives you reads per kilobase (RPK)
-
 df_rpk_merged_len = df_rpk_merged_len.iloc[:,1:].div(df_rpk_merged_len.feature_len, axis=0)
 
 # Divide the RPK values by the “per million” scaling factor. This gives you TPM.
-
 df_tpm_3 = df_rpk_merged_len.div(df_scaling_factor.scaling_factor, axis=1)
 
 
 # ## Ghahramani
 
 # Load in dataset
-
 df_tpm_4 = pd.read_csv(tpm_ghahramani_path, sep=',')
 print_rowcol('Loaded Ghahramani', df_tpm_4)
 
 
 # Rename gene name column
-
-
 df_tpm_4.rename( columns={'Unnamed: 0':'gene_name'}, inplace=True)
 
 # Set gene to index after checking unique
-
-
 df_tpm_4.index = df_tpm_4['gene_name']
 
-
 # Insert gene into data
-
 df_tpm_4 = df_tpm_4.drop('gene_name', axis=1)
 df_tpm_4 = df_gene_name2id.join(df_tpm_4, lsuffix='', rsuffix='', how='inner')
 df_tpm_4.index = df_tpm_4.gene_id
@@ -237,14 +211,12 @@ print_rowcol('Shape after merging gene ids', df_tpm_4)
 # ## Create merged dataset
 # 
 # Create merged dataset from all subsets
-
 df_tpm_combined = df_tpm_1.join(df_tpm_2, lsuffix='', rsuffix='_other', how='inner')
 df_tpm_combined = df_tpm_combined.join(df_tpm_3, lsuffix='', rsuffix='_other', how='inner')
 df_tpm_combined = df_tpm_combined.join(df_tpm_4, lsuffix='', rsuffix='_other', how='inner')
 
 # Create `log2(TPM+1)` dataset
 df_ltpm_combined = np.log2(df_tpm_combined + 1)
-
 
 # Convert to real gene names
 df_ltpm_combined_named = df_ltpm_combined
@@ -261,54 +233,52 @@ df_ltpm_combined_genefilt = df_ltpm_combined_named[df_expression_filt_mask.sum(a
 df_ltpm_combined_genecellfilt = df_ltpm_combined_genefilt     .T[(df_ltpm_combined_genefilt > min_ltpm_exp).sum(axis=0) > min_num_genes_in_cell_exp]
 df_ltpm_combined_genecellfilt = df_ltpm_combined_genecellfilt.T
 
-
 # ## Normalise data
 # 
 # Check max values
-data_max = df_ltpm_combined_genecellfilt.max()
-data_max = data_max.max()
-print(data_max)
+#data_max = df_ltpm_combined_genecellfilt.max()
+#data_max = data_max.max()
+#print(data_max)
 
 
 # Normalise data
-np_data = df_ltpm_combined_genecellfilt.T.values
-scaler = MinMaxScaler()
-print(scaler.fit(np_data))
+#np_data = df_ltpm_combined_genecellfilt.T.values
+#scaler = MinMaxScaler()
+#print(scaler.fit(np_data))
 
 # Check which dimension we are fitting to - if we are fitting to gene expression then should be equal to number of genes
-print(scaler.data_max_.shape)
+#print(scaler.data_max_.shape)
 
-np_data_norm = np.transpose(scaler.transform(np_data))
+#np_data_norm = np.transpose(scaler.transform(np_data))
 
-df_ltpm_combined_norm = pd.DataFrame(np_data_norm)
-df_ltpm_combined_norm.columns = df_ltpm_combined_genecellfilt.columns
-df_ltpm_combined_norm.index = df_ltpm_combined_genecellfilt.index
+#df_ltpm_combined_norm = pd.DataFrame(np_data_norm)
+#df_ltpm_combined_norm.columns = df_ltpm_combined_genecellfilt.columns
+#df_ltpm_combined_norm.index = df_ltpm_combined_genecellfilt.index
 
 
 # Check new max
-data_max = df_ltpm_combined_norm.max()
-data_max = data_max.max()
-print(data_max)
+#data_max = df_ltpm_combined_norm.max()
+#data_max = data_max.max()
+#print(data_max)
 
 # ## Split train and test data sets
 # 
 # Randomly select test and training data
-train_features, test_features = train_test_split(df_ltpm_combined_norm.T, test_size=test_data_size)
+train_features, test_features = train_test_split(df_ltpm_combined_genecellfilt.T, test_size=test_data_size)
 train_features = train_features.T
 test_features = test_features.T
 
 print_rowcol('Created training dataset', train_features)
 print_rowcol('Created test dataset', test_features)
 
-
 # Create unnormalised split dataset from the same choices
-df_ltpm_combined_train = df_ltpm_combined_genecellfilt.T[df_ltpm_combined_genecellfilt.T.index.isin(list(train_features.T.index.values))]
-df_ltpm_combined_train = df_ltpm_combined_train.T
-print_rowcol('Created training unnorm dataset', df_ltpm_combined_train)
+#df_ltpm_combined_train = df_ltpm_combined_genecellfilt.T[df_ltpm_combined_genecellfilt.T.index.isin(list(train_features.T.index.values))]
+#df_ltpm_combined_train = df_ltpm_combined_train.T
+#print_rowcol('Created training unnorm dataset', df_ltpm_combined_train)
 
-df_ltpm_combined_test = df_ltpm_combined_genecellfilt.T[df_ltpm_combined_genecellfilt.T.index.isin(list(test_features.T.index.values))]
-df_ltpm_combined_test = df_ltpm_combined_test.T
-print_rowcol('Created test unnorm dataset', df_ltpm_combined_test)
+#df_ltpm_combined_test = df_ltpm_combined_genecellfilt.T[df_ltpm_combined_genecellfilt.T.index.isin(list(test_features.T.index.values))]
+#df_ltpm_combined_test = df_ltpm_combined_test.T
+#print_rowcol('Created test unnorm dataset', df_ltpm_combined_test)
 
 
 # ## Write data to file
@@ -324,14 +294,17 @@ print(train_df_row_names.shape)
 print(test_df_column_names.shape)
 print(test_df_row_names.shape)
 
+print(train_features.max().max())
+print(test_features.max().max())
+
 # Write the data to file
 train_features.to_csv('tpm_combined.csv', index=False, header=False)
 train_df_column_names.to_csv('tpm_combined_cols.csv', index=False, header=False)
 train_df_row_names.to_csv('tpm_combined_rows.csv', index=False, header=False)
 
-df_ltpm_combined_train.to_csv('tpm_combined_train_nonorm.csv')
-df_ltpm_combined_test.to_csv('tpm_combined_test_nonorm.csv')
-
 test_features.to_csv('tpm_combined_test.csv', index=False, header=False)
 test_df_column_names.to_csv('tpm_combined_cols_test.csv', index=False, header=False)
 test_df_row_names.to_csv('tpm_combined_rows_test.csv', index=False, header=False)
+
+#df_ltpm_combined_train.to_csv('tpm_combined_train_nonorm.csv')
+#df_ltpm_combined_test.to_csv('tpm_combined_test_nonorm.csv')
