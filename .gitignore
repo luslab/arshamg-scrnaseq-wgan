@@ -8,3 +8,5 @@ jupyter/training_checkpoints/
 work/
 results/
 .vscode/.ropeproject/
+
+.vscode/
