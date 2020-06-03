@@ -17,7 +17,7 @@ from collections import Counter, namedtuple
 
 import numpy as np
 import pandas as pd
-import scanpy.api as sc
+import scanpy as sc
 import scipy.sparse as sp_sparse
 from natsort import natsorted
 import tensorflow as tf
@@ -627,18 +627,17 @@ if __name__ == '__main__':
 
     parser.add_argument(
         '--epochs', required=False,
-        default=1, action='store_true',
+        default=1,
         help='Number of epochs to train on')
 
     parser.add_argument(
         '--write_freq', required=False,
-        default=1, action='store_true',
+        default=1,
         help='Frequency to write logging data')
     
     parser.add_argument(
         '--training_output', required=False,
-        default='', action='store_true',
-        help='')
+        default='', help='')
 
     parsedArgs = parser.parse_args()
 
@@ -657,8 +656,8 @@ if __name__ == '__main__':
         sys.exit
 
     if parsedArgs.pbmc_train:
-        params_train_number_epochs = parsedArgs.epochs
-        params_train_write_freq = parsedArgs.write_freq
+        params_train_number_epochs = int(parsedArgs.epochs)
+        params_train_write_freq = int(parsedArgs.write_freq)
         params_training_output = parsedArgs.training_output
         train_pbmc()
         sys.exit
