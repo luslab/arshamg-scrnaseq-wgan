@@ -8,6 +8,7 @@ from __future__ import print_function
 import sys
 import argparse
 import logging
+import datetime
 import os
 import csv
 import random
@@ -20,6 +21,12 @@ import scanpy.api as sc
 import scipy.sparse as sp_sparse
 from natsort import natsorted
 import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+
+sc.settings.verbosity = 3             # verbosity: errors (0), warnings (1), info (2), hints (3)
+sc.logging.print_versions()
+sc.settings.set_figure_params(dpi=80, facecolor='white')
 
 sct = collections.namedtuple('sc', ('barcode', 'count_no', 'genes_no', 'dset', 'cluster'))
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
@@ -41,6 +48,24 @@ params_train_gene_count = 17789
 params_train_dataset_buffer_size = 1000
 params_train_dataset_batch_size = 32
 
+params_train_number_epochs = 10
+params_train_write_freq = 1
+
+params_example_dataset_batch_size = 500
+
+# NN shape
+params_nn_latent_var_size = 100
+params_nn_gen_l1_size = 600
+params_nn_gen_l2_size = 600
+params_nn_gen_l3_size = params_train_gene_count
+params_nn_disc_in_size = params_train_gene_count
+params_nn_disc_l1_size = 200
+params_nn_disc_l2_size = 200
+
+# NN params
+params_nn_disc_dropout = 0.3
+params_nn_learning_rate = 5e-5
+params_nn_gp_lambda = 10
 
 def pre_pbmc_convert():
     # MTX files
@@ -292,8 +317,169 @@ def _parse_example(example_str):
   example = tf.io.parse_single_example(example_str, feature_map)
   return tf.sparse.to_dense(example['scg'])
 
+def _create_generator():
+    model = tf.keras.Sequential()
+    
+    #L1
+    model.add(layers.Dense(params_nn_gen_l1_size, use_bias=False, input_shape=(params_nn_latent_var_size,)))
+    model.add(layers.LayerNormalization(epsilon=1e-6))
+    model.add(layers.LeakyReLU())
+    
+    #L2
+    model.add(layers.Dense(params_nn_gen_l2_size, use_bias=False))
+    model.add(layers.LayerNormalization(epsilon=1e-6))
+    model.add(layers.LeakyReLU())
+    
+    #L3
+    model.add(layers.Dense(params_nn_gen_l3_size, use_bias=False))
+    model.add(layers.LayerNormalization(epsilon=1e-6))
+    model.add(layers.LeakyReLU())
+    
+    return model
+
+def _create_discriminator():
+    model = tf.keras.Sequential()
+    
+    #L1
+    model.add(layers.Dense(params_nn_disc_l1_size, use_bias=False, input_shape=(params_nn_disc_in_size,)))
+    model.add(layers.LayerNormalization(epsilon=1e-6))
+    model.add(layers.LeakyReLU())
+    model.add(layers.Dropout(params_nn_disc_dropout))
+    
+    #L2
+    model.add(layers.Dense(params_nn_disc_l2_size, use_bias=False))
+    model.add(layers.LayerNormalization(epsilon=1e-6))
+    model.add(layers.LeakyReLU())
+    model.add(layers.Dropout(params_nn_disc_dropout))
+    
+    #L3
+    model.add(layers.Flatten())
+    model.add(layers.Dense(1))
+    
+    return model
+
+def _gen_noise(batch_size):
+    noise = tf.random.normal([batch_size, params_nn_latent_var_size])
+    return noise
+
+def _generate_profile(gen, batch_size, scale_factor, label, gene_names, epoch):
+    # Generate from latent variable space (Gaussian)
+    noise = _gen_noise(batch_size)
+
+    # Generate outputs
+    generated_profile = gen(noise, training=False)
+
+    # Create formatted dataframe from generator result
+    df_gen_prof = pd.DataFrame(generated_profile.numpy()).T
+    df_gen_prof = gene_names.join(df_gen_prof, lsuffix='', rsuffix='', how='inner')
+    df_gen_prof.index = df_gen_prof.gene_name
+    df_gen_prof = df_gen_prof.drop('gene_name', axis=1)
+    df_gen_prof = df_gen_prof.add_prefix(label)
+
+    # Scale back to expression data
+    df_gen_prof = df_gen_prof * float(params_pre_scale)
+
+    # Get limits
+    gen_min = df_gen_prof.min().min()
+    gen_max = df_gen_prof.max().max()
+
+    print('Generated prof min/max ' + str(gen_min) + ' - ' + str(gen_max) + " at epoch " + str(epoch))
+    
+    return df_gen_prof
+
+def _setup_tensorboard():
+    # Define tensorboard metrics
+    met_gen_loss = tf.keras.metrics.Mean('gen_loss', dtype=tf.float32)
+    met_disc_loss = tf.keras.metrics.Mean('disc_loss', dtype=tf.float32)
+
+    # Create log directories and tensor board summaries
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+   
+    all_loss_log_path = os.path.join(params_datapath, "logs", "gradient_tape", current_time, "all_train")
+    gen_loss_log_path = os.path.join(params_datapath, "logs", "gradient_tape", current_time, "gen_train")
+    disc_loss_log_path = os.path.join(params_datapath, "logs", "gradient_tape", current_time, "disc_train")
+    image_log_path = os.path.join(params_datapath, "logs", "images", current_time, "training")
+
+    all_summary_writer = tf.summary.create_file_writer(all_loss_log_path)
+    gen_summary_writer = tf.summary.create_file_writer(gen_loss_log_path)
+    disc_summary_writer = tf.summary.create_file_writer(disc_loss_log_path)
+    image_summary_writer = tf.summary.create_file_writer(image_log_path)
+
+    return met_gen_loss, met_disc_loss, all_summary_writer, gen_summary_writer, disc_summary_writer, image_summary_writer
+
+@tf.function
+def _train_step(gen, disc, gen_opt, disc_opt, real_profiles):
+    with tf.GradientTape(persistent=True) as tape:
+        # Generate noise
+        noise = _gen_noise(real_profiles.shape[0])
+
+        # Generate some fake profiles using noise
+        generated_profiles = gen(noise, training=True)
+        
+        # Pass the real profiles and the fake profiles through the disc
+        real_output = disc(real_profiles, training=True)
+        fake_output = disc(generated_profiles, training=True)
+
+        # Calc loss
+        dloss = tf.reduce_mean(fake_output) - tf.reduce_mean(real_output)
+        gloss = -tf.reduce_mean(fake_output)
+
+        # Calculate interpolated profile 
+        shape = [tf.shape(real_profiles)[0]] + [1] * (real_profiles.shape.ndims - 1)
+        epsilon = tf.random.uniform(shape=shape, minval=0., maxval=1.)
+        interpolated_profiles = real_profiles + epsilon * (generated_profiles - real_profiles)
+
+        # Run through disc with nested gradient tape
+        with tf.GradientTape(persistent=True) as tape2:
+            tape2.watch(interpolated_profiles)
+            d_interpolated = disc(interpolated_profiles, training=True)
+
+        # Compute gradient penalty
+        grad = tape2.gradient(d_interpolated, interpolated_profiles)
+        norm = tf.norm(tf.reshape(grad, [tf.shape(grad)[0], -1]), axis=1)
+        gradient_penalty = tf.reduce_mean((norm - 1.)**2)
+
+        # Calculate adjusted loss
+        gploss = dloss + (params_nn_gp_lambda * gradient_penalty)
+
+    # Save the gradients
+    gradients_of_generator = tape.gradient(gloss, gen.trainable_variables)
+    gradients_of_discriminator = tape.gradient(gploss, disc.trainable_variables)
+
+    # Apply the gradients
+    gen_opt.apply_gradients(zip(gradients_of_generator, gen.trainable_variables))
+    disc_opt.apply_gradients(zip(gradients_of_discriminator, disc.trainable_variables))
 
 def train_pbmc():
+    # Log
+    logger = logging.getLogger("pbmc-train")
+    logger.info('Training using PBMC data')
+
+    # Set image directory
+    sc.settings.figdir = os.path.join(params_datapath, "figures")
+
+    # Resolve paths
+    h5ad_file = "68kPBMCs_processed.h5ad"
+    h5ad_path = os.path.join(params_datapath, h5ad_file)
+
+    # Load single cell data
+    sc_raw = sc.read(h5ad_path)
+    cell_count = sc_raw.shape[0]
+    gene_count = sc_raw.shape[1]
+    logger.info("Cells number is %d , with %d genes per cell." % (cell_count, gene_count))
+
+    # Add dataset column
+    dataset_label = np.repeat('pbmc', sc_raw.shape[0])
+    sc_raw.obs['dataset'] = dataset_label
+
+    # Get the validation data
+    sc_test = sc_raw[sc_raw.obs['split'] == "valid", :]
+
+    # Create gene name array
+    df_gene_names = pd.DataFrame(sc_raw.var_names)
+    df_gene_names.columns = ['gene_name']
+
+    # Log TF computing resources
     print("Num CPUs Available: ", len(tf.config.experimental.list_physical_devices('CPU')))
     print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 
@@ -307,15 +493,92 @@ def train_pbmc():
     print("Found " + str(len(train_files)) + " train files")
     print("Found " + str(len(valid_files)) + " valid files")
 
+    # Load training set
     raw_dataset = tf.data.TFRecordDataset(train_files, compression_type='GZIP')
 
-    dataset = raw_dataset.map(_parse_example) \
+    # Create and shuffle dataset
+    train_dataset = raw_dataset.map(_parse_example) \
                          .shuffle(params_train_dataset_buffer_size) \
                          .batch(params_train_dataset_batch_size)
                          #.batch(params_train_dataset_batch_size, drop_remainder=True)
 
+    # Create generator and discriminator
+    generator = _create_generator()
+    discriminator = _create_discriminator()
 
+    # Print summary
+    #generator.summary()
+    #discriminator.summary()
 
+    # Create optimizers
+    generator_optimizer = tf.keras.optimizers.Adam(learning_rate=params_nn_learning_rate, amsgrad=True)
+    discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=params_nn_learning_rate, amsgrad=True)
+
+    # Create checkpoints
+    checkpoint_prefix = os.path.join(params_datapath, "training_checkpoints", "ckpt")
+    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
+                                 discriminator_optimizer=discriminator_optimizer,
+                                 generator=generator,
+                                 discriminator=discriminator)
+
+    # Setup tensorboard
+    met_gen_loss, met_disc_loss, all_summary_writer, gen_summary_writer, disc_summary_writer, image_summary_writer = _setup_tensorboard()
+
+    # Training loop
+    for epoch in range(params_train_number_epochs):
+
+        # Save checkpoints and gen example data
+        if epoch % params_train_write_freq == 0:
+            # Save checkpoint
+            checkpoint.save(file_prefix = checkpoint_prefix)
+
+            # Generate cell examples
+            df_gen_prof = _generate_profile(generator, params_example_dataset_batch_size, params_pre_scale, 'gencell_ep' + str(epoch) + '_', df_gene_names, epoch)
+            gen_prof_path = os.path.join(params_datapath, "gen_profiles","gen_prof_" + str(epoch) + ".csv")
+            df_gen_prof.to_csv(gen_prof_path)
+
+            # Load and format the generated cell profiles
+            sc_gen = sc.read_csv(gen_prof_path, first_column_names=True)
+            sc_gen = sc_gen.transpose()
+            dataset_label = np.repeat('gen', sc_gen.shape[0])
+            sc_gen.obs['dataset'] = dataset_label
+
+            # Merge with raw
+            sc_combined = sc_test.concatenate(sc_gen)
+
+            # Create plot
+            sc.pp.neighbors(sc_combined)
+            sc.tl.umap(sc_combined)
+            sc.pl.umap(sc_combined, save="_" + str(epoch) + ".png", show=False, color='dataset')
+
+            # Load and record the image in a summary
+            image = tf.io.read_file(os.path.join(params_datapath, "figures", "umap_" + str(epoch) + ".png"))
+            image = tf.image.decode_png(image)
+            image = np.reshape(image, (1, image.shape[0], image.shape[1], 4))
+
+            with image_summary_writer.as_default():
+                tf.summary.image("Generated profile UMAP", image, step=epoch)
+
+        for data_batch in train_dataset:
+            _train_step(generator, discriminator, generator_optimizer, discriminator_optimizer, data_batch)
+
+        with all_summary_writer.as_default():
+            tf.summary.scalar('2_gen_loss', met_gen_loss.result(), step=epoch)
+            tf.summary.scalar('3_disc_loss', met_disc_loss.result(), step=epoch)
+    
+        with gen_summary_writer.as_default():
+            tf.summary.scalar('1_loss', met_gen_loss.result(), step=epoch)
+
+        with disc_summary_writer.as_default():
+            tf.summary.scalar('1_loss', met_disc_loss.result(), step=epoch)
+
+        # Reset metrics every epoch
+        met_gen_loss.reset_states()
+        met_disc_loss.reset_states()
+
+    # Final cell generation output
+    #df_gen_prof = _generate_profile(generator, params_example_dataset_batch_size, params_pre_scale, 'gencell_ep' + str(epoch) + '_', df_gene_names, epoch)
+    #df_gen_prof.to_csv(os.path.join(params_datapath, "gen_profiles","gen_prof_" + str(epoch) + ".csv"))
 
 if __name__ == '__main__':
     """
