@@ -6,8 +6,6 @@
 ----------------------------------------------------------------------------------------
 */
 
-// nextflow main.nf -profile docker --downloadDataDir "/Users/cheshic/dev/repos/arshamg-scrnaseq-wgan/data/" --prepareDataDir "/Users/cheshic/dev/repos/arshamg-scrnaseq-wgan/data/"
-
 // Define DSL2
 nextflow.preview.dsl=2
 
@@ -19,89 +17,23 @@ nextflow.preview.dsl=2
 --------------------------------------------------------------------------------------*/
 
 params.epochs = 1
-params.writeFreq = 1
-
-staticDownloadPaths = [
-  "${params.downloadDataDir}GSE67602_Joost_et_al_expression.txt",
-  "${params.downloadDataDir}GSE90848_Ana6_basal_hair_bulb_TPM.txt",
-  "${params.downloadDataDir}GSE90848_Tel_Ana1_Ana2_bulge_HG_basal_HB_TPM.txt",
-  "${params.downloadDataDir}GSE99989_NCA_BCatenin_TPM_matrix.csv",
-  "${params.downloadDataDir}Mus_musculus.GRCm38.99.gtf",
-  "${params.downloadDataDir}gene_names.tsv",
-  "${params.downloadDataDir}gtf.txt"
-]
-
-staticPreparePaths = [
-  "${params.prepareDataDir}tpm_combined.csv",
-  "${params.prepareDataDir}tpm_combined_cols.csv",
-  "${params.prepareDataDir}tpm_combined_cols_test.csv",
-  "${params.prepareDataDir}tpm_combined_rows.csv",
-  "${params.prepareDataDir}tpm_combined_rows_test.csv",
-  "${params.prepareDataDir}tpm_combined_test.csv"
-]
+params.writefreq = 1
 
 /*------------------------------------------------------------------------------------*/
 /* Processes
 --------------------------------------------------------------------------------------*/
 
-process download {
-  publishDir "${params.outdir}/data",
-    mode: "copy", overwrite: true
-
-    output:
-      path "*.{txt,tsv,csv,gtf}"
-
-    script:
-    """
-    python $baseDir/bin/download-data.py
-    """
-}
-
-process prepareData {
-  publishDir "${params.outdir}/processed",
-    mode: "copy", overwrite: true
-
-    input:
-      val(files)
-
-    output:
-      path "*.csv"
-
-    shell:
-      arg1 = files[4]
-      arg2 = files[2]
-      arg3 = files[1]
-      arg4 = files[3]
-      arg5 = files[0]
-      arg6 = files[5]
-      arg7 = 'gtf.txt'
-
-      """
-      python $baseDir/bin/prepare-data.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7
-      """
-}
-
 process runGann {
   publishDir "${params.outdir}/gann",
     mode: "copy", overwrite: true
 
-    input:
-      val(files)
-
     output:
-      path "gen/*.csv"
+      path("pbmc/*")
 
     shell:
-      arg1 = files[0]
-      arg2 = files[1]
-      arg3 = files[2]
-      arg4 = files[3]
-      arg5 = files[4]
-      arg6 = files[5]
-
       """
-      mkdir gen logs
-      python $baseDir/bin/gann.py $arg1 $arg2 $arg3 $arg4 $arg5 $arg6 ${params.epochs} ${params.writeFreq}
+      mkdir pbmc pbmc/figures pbmc/logs pbmc/gen_profiles
+      python $baseDir/bin/scgan/main.py --pbmc_train --data_path ${params.datadir} --training_output pbmc --epochs ${params.epochs} --write_freq ${params.writefreq}
       """
 }
 
@@ -109,41 +41,6 @@ process runGann {
 
 // Run workflow
 workflow {
-    // Create channels for static data
-    if(params.downloadDataDir) {
-      Channel
-      .from(staticDownloadPaths)
-      .set {ch_static_download}
-    }
-
-    if(params.prepareDataDir) {
-      Channel
-      .from(staticPreparePaths)
-      .set {ch_static_prepare}
-    }
-
-    // Download data
-    if(!params.downloadDataDir) {
-      download()
-    }
-
-    // Prepare data
-    if(!params.downloadDataDir) {
-      prepareData( download.out.collect() )
-    }
-    else if (!params.prepareDataDir) {
-      prepareData( ch_static_download.collect() )
-    }
-
     // run gann
-    if(!params.prepareDataDir) {
-      runGann( prepareData.out.collect() )
-    }
-    else {
-      runGann( ch_static_prepare.collect() )
-    }
-}
-
-workflow.onComplete {
-    log.info "\nPipeline complete!\n"
+    runGann()
 }

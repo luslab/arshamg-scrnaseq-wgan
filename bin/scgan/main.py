@@ -24,7 +24,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-sc.settings.verbosity = 3             # verbosity: errors (0), warnings (1), info (2), hints (3)
+#sc.settings.verbosity = 3             # verbosity: errors (0), warnings (1), info (2), hints (3)
 sc.logging.print_versions()
 sc.settings.set_figure_params(dpi=80, facecolor='white')
 
@@ -34,6 +34,7 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 SEED = 0
 
 params_datapath = ''
+params_training_output = ''
 logger = None
 
 params_pre_cluster_res = 0.15
@@ -395,10 +396,10 @@ def _setup_tensorboard():
     # Create log directories and tensor board summaries
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
    
-    all_loss_log_path = os.path.join(params_datapath, "logs", "gradient_tape", current_time, "all_train")
-    gen_loss_log_path = os.path.join(params_datapath, "logs", "gradient_tape", current_time, "gen_train")
-    disc_loss_log_path = os.path.join(params_datapath, "logs", "gradient_tape", current_time, "disc_train")
-    image_log_path = os.path.join(params_datapath, "logs", "images", current_time, "training")
+    all_loss_log_path = os.path.join(params_training_output, "logs", "gradient_tape", current_time, "all_train")
+    gen_loss_log_path = os.path.join(params_training_output, "logs", "gradient_tape", current_time, "gen_train")
+    disc_loss_log_path = os.path.join(params_training_output, "logs", "gradient_tape", current_time, "disc_train")
+    image_log_path = os.path.join(params_training_output, "logs", "images", current_time, "training")
 
     all_summary_writer = tf.summary.create_file_writer(all_loss_log_path)
     gen_summary_writer = tf.summary.create_file_writer(gen_loss_log_path)
@@ -407,8 +408,35 @@ def _setup_tensorboard():
 
     return met_gen_loss, met_disc_loss, all_summary_writer, gen_summary_writer, disc_summary_writer, image_summary_writer
 
+def _generate_example_profiles(generator, df_gene_names, sc_test, epoch):
+    # Generate cell examples
+    df_gen_prof = _generate_profile(generator, params_example_dataset_batch_size, params_pre_scale, 'gencell_ep' + str(epoch) + '_', df_gene_names, epoch)
+    gen_prof_path = os.path.join(params_training_output, "gen_profiles","gen_prof_" + str(epoch) + ".csv")
+    df_gen_prof.to_csv(gen_prof_path)
+
+    # Load and format the generated cell profiles
+    sc_gen = sc.read_csv(gen_prof_path, first_column_names=True)
+    sc_gen = sc_gen.transpose()
+    dataset_label = np.repeat('gen', sc_gen.shape[0])
+    sc_gen.obs['dataset'] = dataset_label
+
+    # Merge with raw
+    sc_combined = sc_test.concatenate(sc_gen)
+
+    # Create plot
+    sc.pp.neighbors(sc_combined)
+    sc.tl.umap(sc_combined)
+    sc.pl.umap(sc_combined, save="_" + str(epoch) + ".png", show=False, color='dataset')
+
+    # Load and record the image in a summary
+    image = tf.io.read_file(os.path.join(params_training_output, "figures", "umap_" + str(epoch) + ".png"))
+    image = tf.image.decode_png(image)
+    image = np.reshape(image, (1, image.shape[0], image.shape[1], 4))
+
+    return image
+
 @tf.function
-def _train_step(gen, disc, gen_opt, disc_opt, real_profiles):
+def _train_step(gen, disc, gen_opt, disc_opt, met_gen_loss, met_disc_loss, real_profiles):
     with tf.GradientTape(persistent=True) as tape:
         # Generate noise
         noise = _gen_noise(real_profiles.shape[0])
@@ -450,13 +478,21 @@ def _train_step(gen, disc, gen_opt, disc_opt, real_profiles):
     gen_opt.apply_gradients(zip(gradients_of_generator, gen.trainable_variables))
     disc_opt.apply_gradients(zip(gradients_of_discriminator, disc.trainable_variables))
 
+    met_disc_loss(gploss)
+    met_gen_loss(gloss)
+
 def train_pbmc():
     # Log
     logger = logging.getLogger("pbmc-train")
     logger.info('Training using PBMC data')
 
+    logger.info("Data path: " + params_datapath)
+    logger.info("Output path: " + params_training_output)
+    logger.info("Epochs: " + str(params_train_number_epochs))
+    logger.info("Write freq: " + str(params_train_write_freq))
+
     # Set image directory
-    sc.settings.figdir = os.path.join(params_datapath, "figures")
+    sc.settings.figdir = os.path.join(params_training_output, "figures")
 
     # Resolve paths
     h5ad_file = "68kPBMCs_processed.h5ad"
@@ -490,8 +526,8 @@ def train_pbmc():
     valid_files = [os.path.join(tf_dir, f)
                    for f in os.listdir(tf_dir) if "valid" in f]
 
-    print("Found " + str(len(train_files)) + " train files")
-    print("Found " + str(len(valid_files)) + " valid files")
+    logger.info("Found " + str(len(train_files)) + " train files")
+    logger.info("Found " + str(len(valid_files)) + " valid files")
 
     # Load training set
     raw_dataset = tf.data.TFRecordDataset(train_files, compression_type='GZIP')
@@ -515,7 +551,7 @@ def train_pbmc():
     discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=params_nn_learning_rate, amsgrad=True)
 
     # Create checkpoints
-    checkpoint_prefix = os.path.join(params_datapath, "training_checkpoints", "ckpt")
+    checkpoint_prefix = os.path.join(params_training_output, "training_checkpoints", "ckpt")
     checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  discriminator_optimizer=discriminator_optimizer,
                                  generator=generator,
@@ -526,41 +562,20 @@ def train_pbmc():
 
     # Training loop
     for epoch in range(params_train_number_epochs):
+        logger.info("Epoch " + str(epoch))
 
         # Save checkpoints and gen example data
         if epoch % params_train_write_freq == 0:
             # Save checkpoint
             checkpoint.save(file_prefix = checkpoint_prefix)
 
-            # Generate cell examples
-            df_gen_prof = _generate_profile(generator, params_example_dataset_batch_size, params_pre_scale, 'gencell_ep' + str(epoch) + '_', df_gene_names, epoch)
-            gen_prof_path = os.path.join(params_datapath, "gen_profiles","gen_prof_" + str(epoch) + ".csv")
-            df_gen_prof.to_csv(gen_prof_path)
-
-            # Load and format the generated cell profiles
-            sc_gen = sc.read_csv(gen_prof_path, first_column_names=True)
-            sc_gen = sc_gen.transpose()
-            dataset_label = np.repeat('gen', sc_gen.shape[0])
-            sc_gen.obs['dataset'] = dataset_label
-
-            # Merge with raw
-            sc_combined = sc_test.concatenate(sc_gen)
-
-            # Create plot
-            sc.pp.neighbors(sc_combined)
-            sc.tl.umap(sc_combined)
-            sc.pl.umap(sc_combined, save="_" + str(epoch) + ".png", show=False, color='dataset')
-
-            # Load and record the image in a summary
-            image = tf.io.read_file(os.path.join(params_datapath, "figures", "umap_" + str(epoch) + ".png"))
-            image = tf.image.decode_png(image)
-            image = np.reshape(image, (1, image.shape[0], image.shape[1], 4))
-
+            # Generate image set for epoch
+            image = _generate_example_profiles(generator, df_gene_names, sc_test, epoch)
             with image_summary_writer.as_default():
                 tf.summary.image("Generated profile UMAP", image, step=epoch)
 
         for data_batch in train_dataset:
-            _train_step(generator, discriminator, generator_optimizer, discriminator_optimizer, data_batch)
+            _train_step(generator, discriminator, generator_optimizer, discriminator_optimizer, met_gen_loss, met_disc_loss, data_batch)
 
         with all_summary_writer.as_default():
             tf.summary.scalar('2_gen_loss', met_gen_loss.result(), step=epoch)
@@ -577,8 +592,9 @@ def train_pbmc():
         met_disc_loss.reset_states()
 
     # Final cell generation output
-    #df_gen_prof = _generate_profile(generator, params_example_dataset_batch_size, params_pre_scale, 'gencell_ep' + str(epoch) + '_', df_gene_names, epoch)
-    #df_gen_prof.to_csv(os.path.join(params_datapath, "gen_profiles","gen_prof_" + str(epoch) + ".csv"))
+    image = _generate_example_profiles(generator, df_gene_names, sc_test, epoch)
+    with image_summary_writer.as_default():
+        tf.summary.image("Generated profile UMAP", image, step=epoch)
 
 if __name__ == '__main__':
     """
@@ -609,6 +625,21 @@ if __name__ == '__main__':
         default=False, action='store_true',
         help='Train on PBMC data')
 
+    parser.add_argument(
+        '--epochs', required=False,
+        default=1, action='store_true',
+        help='Number of epochs to train on')
+
+    parser.add_argument(
+        '--write_freq', required=False,
+        default=1, action='store_true',
+        help='Frequency to write logging data')
+    
+    parser.add_argument(
+        '--training_output', required=False,
+        default='', action='store_true',
+        help='')
+
     parsedArgs = parser.parse_args()
 
     params_datapath = parsedArgs.data_path
@@ -626,5 +657,8 @@ if __name__ == '__main__':
         sys.exit
 
     if parsedArgs.pbmc_train:
+        params_train_number_epochs = parsedArgs.epochs
+        params_train_write_freq = parsedArgs.write_freq
+        params_training_output = parsedArgs.training_output
         train_pbmc()
         sys.exit
