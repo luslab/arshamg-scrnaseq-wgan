@@ -546,8 +546,8 @@ def train_pbmc():
     logger.info("Found " + str(len(valid_files)) + " valid files")
 
     # Load training set
-    #raw_dataset = tf.data.TFRecordDataset(train_files, compression_type='GZIP')
-    raw_dataset = tf.data.TFRecordDataset(valid_files, compression_type='GZIP')
+    raw_dataset = tf.data.TFRecordDataset(train_files, compression_type='GZIP')
+    #raw_dataset = tf.data.TFRecordDataset(valid_files, compression_type='GZIP')
 
     # Create and shuffle dataset
     train_dataset = raw_dataset.map(_parse_example) \
