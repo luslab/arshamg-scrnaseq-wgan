@@ -13,6 +13,7 @@ import os
 import csv
 import random
 import collections
+import glob
 from collections import Counter, namedtuple
 
 import numpy as np
@@ -23,6 +24,7 @@ from natsort import natsorted
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+import cv2
 
 #sc.settings.verbosity = 3             # verbosity: errors (0), warnings (1), info (2), hints (3)
 sc.logging.print_versions()
@@ -435,6 +437,20 @@ def _generate_example_profiles(generator, df_gene_names, sc_test, epoch):
 
     return image
 
+def _create_movie_from_images():
+    img_array = []
+    for filename in glob.glob(os.path.join(params_training_output, "figures", "*.png")):
+        img = cv2.imread(filename)
+        height, width, layers = img.shape
+        size = (width,height)
+        img_array.append(img)
+ 
+    out = cv2.VideoWriter(os.path.join(params_training_output, "umap_training.avi"), cv2.VideoWriter_fourcc(*'XVID'), 1, size)
+ 
+    for i in range(len(img_array)):
+        out.write(img_array[i])
+    out.release()
+
 @tf.function
 def _train_step(gen, disc, gen_opt, disc_opt, met_gen_loss, met_disc_loss, real_profiles):
     with tf.GradientTape(persistent=True) as tape:
@@ -530,7 +546,8 @@ def train_pbmc():
     logger.info("Found " + str(len(valid_files)) + " valid files")
 
     # Load training set
-    raw_dataset = tf.data.TFRecordDataset(train_files, compression_type='GZIP')
+    #raw_dataset = tf.data.TFRecordDataset(train_files, compression_type='GZIP')
+    raw_dataset = tf.data.TFRecordDataset(valid_files, compression_type='GZIP')
 
     # Create and shuffle dataset
     train_dataset = raw_dataset.map(_parse_example) \
@@ -596,6 +613,9 @@ def train_pbmc():
         image = _generate_example_profiles(generator, df_gene_names, sc_test, epoch)
         with image_summary_writer.as_default():
             tf.summary.image("Generated profile UMAP", image, step=epoch)
+    
+    # Output movie
+    _create_movie_from_images()
 
 if __name__ == '__main__':
     """

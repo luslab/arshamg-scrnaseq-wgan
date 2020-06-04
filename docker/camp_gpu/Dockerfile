@@ -46,3 +46,10 @@ RUN conda install -c conda-forge python-igraph leidenalg
 RUN pip install --upgrade pip
 RUN pip install scanpy
 RUN pip install tensorflow
+
+# Install open cv
+RUN apt-get update --fix-missing && \
+    apt-get install -y libsm6 libxext6 libxrender-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install opencv-python
