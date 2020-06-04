@@ -18,6 +18,7 @@ nextflow.preview.dsl=2
 
 params.epochs = 1
 params.writefreq = 1
+params.datadir = ''
 
 /*------------------------------------------------------------------------------------*/
 /* Processes
@@ -27,13 +28,16 @@ process runGann {
   publishDir "${params.outdir}/gann",
     mode: "copy", overwrite: true
 
+    input:
+      path(datadir)
+
     output:
-      path("pbmc/*")
+      path("pbmc_output/*")
 
     shell:
       """
-      mkdir pbmc pbmc/figures pbmc/logs pbmc/gen_profiles
-      python $baseDir/bin/scgan/main.py --pbmc_train --data_path ${params.datadir} --training_output pbmc --epochs ${params.epochs} --write_freq ${params.writefreq}
+      mkdir pbmc_output pbmc_output/figures pbmc_output/logs pbmc_output/gen_profiles
+      python $baseDir/bin/scgan/main.py --pbmc_train --data_path $datadir --training_output pbmc_output --epochs ${params.epochs} --write_freq ${params.writefreq}
       """
 }
 
@@ -41,6 +45,11 @@ process runGann {
 
 // Run workflow
 workflow {
+
+  Channel
+    .from(params.datadir)
+    .set {ch_data}
+
     // run gann
-    runGann()
+    runGann(ch_data)
 }
