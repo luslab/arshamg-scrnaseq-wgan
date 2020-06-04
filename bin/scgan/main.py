@@ -592,9 +592,10 @@ def train_pbmc():
         met_disc_loss.reset_states()
 
     # Final cell generation output
-    image = _generate_example_profiles(generator, df_gene_names, sc_test, epoch)
-    with image_summary_writer.as_default():
-        tf.summary.image("Generated profile UMAP", image, step=epoch)
+    if epoch % params_train_write_freq != 0:
+        image = _generate_example_profiles(generator, df_gene_names, sc_test, epoch)
+        with image_summary_writer.as_default():
+            tf.summary.image("Generated profile UMAP", image, step=epoch)
 
 if __name__ == '__main__':
     """
