@@ -41,6 +41,8 @@ params_datapath = ''
 params_training_output = ''
 logger = None
 
+params_util_video_framerate = 2
+
 params_pre_cluster_res = 0.15
 params_pre_min_cells = 3
 params_pre_min_genes = 10
@@ -55,7 +57,6 @@ params_train_dataset_batch_size = 32
 
 params_train_number_epochs = 10
 params_train_write_freq = 1
-
 params_example_dataset_batch_size = 500
 
 # NN shape
@@ -452,7 +453,7 @@ def _create_movie_from_images():
         size = (width,height)
         img_array.append(img)
  
-    out = cv2.VideoWriter(os.path.join(params_training_output, "umap_training.avi"), cv2.VideoWriter_fourcc(*'XVID'), 2, size)
+    out = cv2.VideoWriter(os.path.join(params_training_output, "umap_training.avi"), cv2.VideoWriter_fourcc(*'XVID'), params_util_video_framerate, size)
  
     for i in range(len(img_array)):
         out.write(img_array[i])
@@ -621,7 +622,7 @@ def train_pbmc():
             tf.summary.image("Generated profile UMAP", image, step=epoch)
     
     # Output movie
-    #_create_movie_from_images()
+    _create_movie_from_images()
 
 if __name__ == '__main__':
     """
@@ -653,6 +654,10 @@ if __name__ == '__main__':
         help='Train on PBMC data')
 
     parser.add_argument(
+        '--movie', required=False,
+        default=False, action='store_true')
+
+    parser.add_argument(
         '--epochs', required=False,
         default=1,
         help='Number of epochs to train on')
@@ -666,9 +671,15 @@ if __name__ == '__main__':
         '--training_output', required=False,
         default='', help='')
 
+    parser.add_argument(
+        '--frame_rate', required=False)
+
     parsedArgs = parser.parse_args()
 
     params_datapath = parsedArgs.data_path
+
+    if(parsedArgs.frame_rate):
+        params_util_video_framerate = int(parsedArgs.frame_rate)
 
     if parsedArgs.pbmc_convert:
         pre_pbmc_convert()
@@ -687,4 +698,9 @@ if __name__ == '__main__':
         params_train_write_freq = int(parsedArgs.write_freq)
         params_training_output = parsedArgs.training_output
         train_pbmc()
+        sys.exit
+
+    if parsedArgs.movie:
+        params_training_output = parsedArgs.training_output
+        _create_movie_from_images()
         sys.exit
