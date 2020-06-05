@@ -26,6 +26,8 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import cv2
 
+from customlayers.scalecell import ScaleCell
+
 #sc.settings.verbosity = 3             # verbosity: errors (0), warnings (1), info (2), hints (3)
 sc.logging.print_versions()
 sc.settings.set_figure_params(dpi=80, facecolor='white')
@@ -337,6 +339,9 @@ def _create_generator():
     model.add(layers.Dense(params_nn_gen_l3_size, use_bias=False))
     model.add(layers.LayerNormalization(epsilon=1e-6))
     model.add(layers.LeakyReLU())
+
+    # Add scaling layer
+    model.add(ScaleCell(scale_factor=params_pre_scale))
     
     return model
 
@@ -363,6 +368,7 @@ def _create_discriminator():
 
 def _gen_noise(batch_size):
     noise = tf.random.normal([batch_size, params_nn_latent_var_size])
+    print
     return noise
 
 def _generate_profile(gen, batch_size, scale_factor, label, gene_names, epoch):
@@ -380,7 +386,7 @@ def _generate_profile(gen, batch_size, scale_factor, label, gene_names, epoch):
     df_gen_prof = df_gen_prof.add_prefix(label)
 
     # Scale back to expression data
-    df_gen_prof = df_gen_prof * float(params_pre_scale)
+    #df_gen_prof = df_gen_prof * float(params_pre_scale)
 
     # Get limits
     gen_min = df_gen_prof.min().min()
@@ -445,7 +451,7 @@ def _create_movie_from_images():
         size = (width,height)
         img_array.append(img)
  
-    out = cv2.VideoWriter(os.path.join(params_training_output, "umap_training.avi"), cv2.VideoWriter_fourcc(*'XVID'), 1, size)
+    out = cv2.VideoWriter(os.path.join(params_training_output, "umap_training.avi"), cv2.VideoWriter_fourcc(*'XVID'), 2, size)
  
     for i in range(len(img_array)):
         out.write(img_array[i])
@@ -553,7 +559,6 @@ def train_pbmc():
     train_dataset = raw_dataset.map(_parse_example) \
                          .shuffle(params_train_dataset_buffer_size) \
                          .batch(params_train_dataset_batch_size)
-                         #.batch(params_train_dataset_batch_size, drop_remainder=True)
 
     # Create generator and discriminator
     generator = _create_generator()
@@ -615,7 +620,7 @@ def train_pbmc():
             tf.summary.image("Generated profile UMAP", image, step=epoch)
     
     # Output movie
-    _create_movie_from_images()
+    #_create_movie_from_images()
 
 if __name__ == '__main__':
     """

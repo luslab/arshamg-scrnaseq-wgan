@@ -10,3 +10,5 @@ results/
 .vscode/.ropeproject/
 
 .vscode/
+
+*.pyc
