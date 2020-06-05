@@ -368,10 +368,11 @@ def _create_discriminator():
 
 def _gen_noise(batch_size):
     noise = tf.random.normal([batch_size, params_nn_latent_var_size])
-    print
     return noise
 
 def _generate_profile(gen, batch_size, scale_factor, label, gene_names, epoch):
+    logger = logging.getLogger("gen-prof")
+
     # Generate from latent variable space (Gaussian)
     noise = _gen_noise(batch_size)
 
@@ -392,7 +393,7 @@ def _generate_profile(gen, batch_size, scale_factor, label, gene_names, epoch):
     gen_min = df_gen_prof.min().min()
     gen_max = df_gen_prof.max().max()
 
-    print('Generated prof min/max ' + str(gen_min) + ' - ' + str(gen_max) + " at epoch " + str(epoch))
+    logger.info('Generated prof min/max ' + str(gen_min) + ' - ' + str(gen_max) + " at epoch " + str(epoch))
     
     return df_gen_prof
 
