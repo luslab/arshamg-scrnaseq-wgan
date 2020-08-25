@@ -14,13 +14,8 @@ import os
 from lib.downloader import Downloader
 
 if __name__ == '__main__':
-    """
-    Main comment
-    """
     parser = argparse.ArgumentParser()
-
     parser.add_argument('--download_data', required=False, default=False, action='store_true')
-
     parsedArgs = parser.parse_args()
 
     # Source data downloader
