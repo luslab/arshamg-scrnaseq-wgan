@@ -36,4 +36,5 @@ if __name__ == '__main__':
         logger.info('Preprocessing arsham dataset')
         p = Preprocessor(logger)
         p.findTranscriptLengths()
+        p.preprocessRnaData()
         sys.exit

@@ -12,6 +12,7 @@ dependencies:
     - numpy=1.19.*
     - pandas=1.1.*
     - gtfparse=1.2.1
+    - scanpy=1.6.*
 
     # pip packages
     - pip
