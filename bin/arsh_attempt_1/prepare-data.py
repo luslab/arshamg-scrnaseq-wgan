@@ -92,7 +92,6 @@ print_rowcol('Loaded gene names', df_gene_name2id)
 df_tpm_1 = pd.read_csv(tpm_yang_path, sep='\t')
 print_rowcol('Loaded Yang1', df_tpm_1)
 
-
 # Clean the yang1 dataset to get the gene names, call `.shape` to check we havent filtered anything
 # Split gene ids on _ and load into a new data frame and set the columns
 split_data = pd.DataFrame(df_tpm_1.Gene_id.str.split("_", expand=True))
