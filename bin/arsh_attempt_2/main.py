@@ -37,4 +37,5 @@ if __name__ == '__main__':
         p = Preprocessor(logger)
         p.findTranscriptLengths()
         p.preprocessRnaData()
+        p.annotateScData()
         sys.exit

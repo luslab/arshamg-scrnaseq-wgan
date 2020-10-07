@@ -27,6 +27,7 @@ class Preprocessor:
     gtf_csv_path = 'Mus_musculus.GRCm38.99.csv'
     gene_length_tsv_path = 'gene_lengths.tsv'
     tpm_combined_path = 'tpm_combined.csv'
+    h5ad_combined_path = 'tpm_combined.h5ad'
 
     def __init__(self, logger):
         self.logger = logger
@@ -279,13 +280,31 @@ class Preprocessor:
         self.print_df_rowcol('Shape after merging', df_tpm_combined)
 
         # Convert to real gene names
-        df_tpm_combined = df_gene_names.join(df_tpm_combined, lsuffix='', rsuffix='', how='inner')
-        df_tpm_combined.index = df_tpm_combined.gene_name
-        df_tpm_combined = df_tpm_combined.drop('gene_name', axis=1)
-        self.print_df_rowcol('Shape after switching to gene names', df_tpm_combined)
+        #df_tpm_combined = df_gene_names.join(df_tpm_combined, lsuffix='', rsuffix='', how='inner')
+        #df_tpm_combined.index = df_tpm_combined.gene_name
+        #df_tpm_combined = df_tpm_combined.drop('gene_name', axis=1)
+        #self.print_df_rowcol('Shape after switching to gene names', df_tpm_combined)
 
         # Write to file
         df_tpm_combined.to_csv(self.tpm_combined_path)
 
+    def annotateScData(self):
+        self.logger.info('Annotating dataset')
+
         # Load up as anndata object
-        sc.read_csv(self.tpm_combined_path)
+        sc_data = sc.read_csv(self.tpm_combined_path)
+
+        self.logger.info('Annotating gene names')
+
+        # Load gene name lookup
+        df_gene_names = pd.read_csv(self.gene_tsv_path, sep='\t', header=None)
+        df_gene_names.columns = ['gene_id', "gene_name"]
+        df_gene_names.index = df_gene_names.gene_id
+        df_gene_names = df_gene_names.drop('gene_id', axis=1)
+        self.print_df_rowcol('Loaded gene names', df_gene_names)
+
+        # Set gene names into meta
+        sc_data.obs = sc_data.obs.join(df_gene_names, lsuffix='', rsuffix='', how='left')
+
+        # Write to file
+        sc_data.write(filename=self.h5ad_combined_path)
