@@ -11,8 +11,10 @@ import pandas as pd
 from biomart import BiomartServer
 from gtfparse import read_gtf
 import scanpy as sc
+import scipy.sparse as sp_sparse
 
 class Preprocessor:
+    figure_dir = './figures/'
     gtf_path_gz = 'Mus_musculus.GRCm38.99.gtf.gz'
     gtf_path =  'Mus_musculus.GRCm38.99.gtf'
     tpm_yang_path_gz = 'GSE90848_Ana6_basal_hair_bulb_TPM.txt.gz'
@@ -28,9 +30,16 @@ class Preprocessor:
     gene_length_tsv_path = 'gene_lengths.tsv'
     tpm_combined_path = 'tpm_combined.csv'
     h5ad_combined_path = 'tpm_combined.h5ad'
+    all_preprocessed_path = 'all_preprocessed.h5ad'
 
     def __init__(self, logger):
         self.logger = logger
+        
+        sc.settings.autosave=True
+        sc.settings.autoshow=False
+        sc.settings.figdir=self.figure_dir
+        sc.settings.verbosity=3
+        sc.set_figure_params(format='png')
     
     def downloadFile(self, url, file_path_gz, file_path):
         if path.exists(file_path) is False: 
@@ -289,6 +298,10 @@ class Preprocessor:
         df_tpm_combined.to_csv(self.tpm_combined_path)
 
     def annotateScData(self):
+        if path.exists(self.h5ad_combined_path) is True:
+            self.logger.info('Preprocessed file already exists')
+            return
+            
         self.logger.info('Annotating dataset')
 
         # Load up as anndata object
@@ -308,3 +321,36 @@ class Preprocessor:
 
         # Write to file
         sc_data.write(filename=self.h5ad_combined_path)
+
+    def preprocessScData(self):
+        if path.exists(self.all_preprocessed_path) is True:
+            self.logger.info('Preprocessed file already exists')
+            return
+
+        self.logger.info('Preprocessing single cell data')
+        sc_raw = sc.read(self.h5ad_combined_path)
+        sc_raw = sc_raw.transpose()
+
+        if sp_sparse.issparse(sc_raw.X):
+            self.logger.info('Data is sparse...')
+            sc_raw.X = sc_raw.X.toarray()
+
+        # Convert to log
+        # Total count normalise the data
+
+        # Write to file
+        sc_raw.write(filename=self.all_preprocessed_path)
+
+    def realDataAnalysis(self):
+        #sc.logging.print_header()
+
+        # Load data
+        sc_pp = sc.read(self.all_preprocessed_path)
+
+        # Top 20 highest expressed genes
+        #sc.pl.highest_expr_genes(sc_pp, n_top=20, gene_symbols='gene_name', )
+
+        #There are no MT genes in the merged dataset
+
+        sc.tl.tsne(sc_pp)
+        sc.pl.tsne(sc_pp)

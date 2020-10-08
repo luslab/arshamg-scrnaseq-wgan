@@ -19,6 +19,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--download_data', required=False, default=False, action='store_true')
     parser.add_argument('--preprocess', required=False, default=False, action='store_true')
+    parser.add_argument('--real_analysis', required=False, default=False, action='store_true')
     parsedArgs = parser.parse_args()
 
     logger = logging.getLogger("arsh-gann")
@@ -38,4 +39,12 @@ if __name__ == '__main__':
         p.findTranscriptLengths()
         p.preprocessRnaData()
         p.annotateScData()
+        p.preprocessScData()
+        sys.exit
+
+    # Real data analysis
+    if parsedArgs.real_analysis:
+        logger.info('Analysing real dataset')
+        p = Preprocessor(logger)
+        p.realDataAnalysis()
         sys.exit
