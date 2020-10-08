@@ -307,6 +307,11 @@ class Preprocessor:
         # Load up as anndata object
         sc_data = sc.read_csv(self.tpm_combined_path)
 
+        self.logger.info('Annotating data set')
+
+        # Split out dataset name
+        sc_data.var['dataset'] = sc_data.var_names.str.split('_').str.get(0)
+
         self.logger.info('Annotating gene names')
 
         # Load gene name lookup
@@ -335,6 +340,17 @@ class Preprocessor:
             self.logger.info('Data is sparse...')
             sc_raw.X = sc_raw.X.toarray()
 
+        # Log the data matrix (log2(TPM+1))
+        sc.pp.log1p(sc_raw, base=2)
+
+        # Filter cells
+        sc.pp.filter_cells(sc_raw, min_genes=1000)
+        print("Cells remaining: " + str(sc_raw.n_obs))
+
+        # Filter gene
+        sc.pp.filter_genes(sc_raw, min_cells=500)
+        print("Genes remaining: " + str(len(sc_raw.var.index)))
+
         # Convert to log
         # Total count normalise the data
 
@@ -353,4 +369,4 @@ class Preprocessor:
         #There are no MT genes in the merged dataset
 
         sc.tl.tsne(sc_pp)
-        sc.pl.tsne(sc_pp)
+        sc.pl.tsne(sc_pp, color=['dataset'])
