@@ -3,15 +3,20 @@
 
 import os
 from os import path
+import random
 import gzip
 import urllib.request
+from collections import Counter, namedtuple
 
 import numpy as np
 import pandas as pd
+from natsort import natsorted
 from biomart import BiomartServer
 from gtfparse import read_gtf
 import scanpy as sc
 import scipy.sparse as sp_sparse
+
+SEED = 0
 
 class Preprocessor:
     figure_dir = './figures/'
@@ -31,6 +36,10 @@ class Preprocessor:
     tpm_combined_path = 'tpm_combined.csv'
     h5ad_combined_path = 'tpm_combined.h5ad'
     all_preprocessed_path = 'all_preprocessed.h5ad'
+
+    params_pre_cluster_res = 0.15
+    params_pre_test_cells = 0
+    params_pre_valid_cells = 500
 
     def __init__(self, logger):
         self.logger = logger
@@ -328,9 +337,9 @@ class Preprocessor:
         sc_data.write(filename=self.h5ad_combined_path)
 
     def preprocessScData(self):
-        if path.exists(self.all_preprocessed_path) is True:
-            self.logger.info('Preprocessed file already exists')
-            return
+        #if path.exists(self.all_preprocessed_path) is True:
+        #    self.logger.info('Preprocessed file already exists')
+        #    return
 
         self.logger.info('Preprocessing single cell data')
         sc_raw = sc.read(self.h5ad_combined_path)
@@ -340,21 +349,102 @@ class Preprocessor:
             self.logger.info('Data is sparse...')
             sc_raw.X = sc_raw.X.toarray()
 
+        # TODO: Use pca to choose correct number of components
+
+        sc.tl.pca(sc_raw, n_comps=50) # Get pca of this?
+        sc.pl.pca(sc_raw, color=['dataset'], save='_pre_b4_zheng17.png')
+        clustered = sc_raw.copy()
+        sc.pp.recipe_zheng17(clustered) # some kind of expression normalisation and selection
+        sc.tl.pca(clustered, n_comps=50) # Get pca of this?
+        sc.pl.pca(clustered, color=['dataset'], save='_pre_post_zheng17.png')
+
         # Log the data matrix (log2(TPM+1))
         sc.pp.log1p(sc_raw, base=2)
 
         # Filter cells
         sc.pp.filter_cells(sc_raw, min_genes=1000)
-        print("Cells remaining: " + str(sc_raw.n_obs))
+        self.logger.info("Cells remaining: " + str(sc_raw.n_obs))
 
         # Filter gene
         sc.pp.filter_genes(sc_raw, min_cells=500)
-        print("Genes remaining: " + str(len(sc_raw.var.index)))
+        self.logger.info("Genes remaining: " + str(len(sc_raw.var.index)))
 
-        # Convert to log
-        # Total count normalise the data
+        # Clustering
+        sc.pp.neighbors(clustered, n_pcs=50)
+        sc.tl.louvain(clustered, resolution=self.params_pre_cluster_res)
+
+        # Add clusters to the raw data and plot
+        sc_raw.obs['cluster'] = clustered.obs['louvain']
+        sc.tl.tsne(sc_raw)
+        sc.pl.tsne(sc_raw, color=['cluster','dataset'], save='_pre_louvain.png')
+
+        # Calc cluster ratios
+        cells_per_cluster = Counter(sc_raw.obs['cluster'])
+        cluster_ratios = dict()
+        for key, value in cells_per_cluster.items():
+            cluster_ratios[key] = value / sc_raw.shape[0]
+        clusters_no = len(cells_per_cluster)
+        self.logger.info("Clustering of the raw data is done to %d clusters." % clusters_no)
+        self.logger.info(cluster_ratios)
+
+        # TODO: Total count normalise the data?
+
+        # Setup random
+        random.seed(SEED)
+        np.random.seed(SEED)
+
+        # Calc how many validation cells there should be per cluster
+        valid_cells_per_cluster = {
+            key: int(value * self.params_pre_valid_cells)
+            for key, value in cluster_ratios.items()}
+        self.logger.info("Valid cells per cluster")
+        self.logger.info(valid_cells_per_cluster)
+
+        # Calc how many test cells there should be per cluster
+        test_cells_per_cluster = {
+            key: int(value * self.params_pre_test_cells)
+            for key, value in cluster_ratios.items()}
+        self.logger.info("Test cells per cluster")
+        self.logger.info(test_cells_per_cluster)
+
+        # Create a obs column for the split of the train/test valid data
+        # Initialise to train and set it as a categorical column
+        split_col = np.repeat('train', sc_raw.shape[0])
+        unique_groups = np.asarray(['valid', 'test', 'train'])
+        sc_raw.obs['split'] = pd.Categorical(values=split_col, categories=natsorted(unique_groups))
+
+        # For each cluster
+        self.logger.info("Assigning to train/valid/test based on clusters")
+        for key in valid_cells_per_cluster:
+            # Get all the cells that match the cluster id
+            indices = sc_raw.obs[sc_raw.obs['cluster'] == str(key)].index
+
+            # Randomly assign a number of cells to the test and valid sets
+            # based on the clustering
+            test_valid_indices = np.random.choice(
+                indices, valid_cells_per_cluster[key] +
+                test_cells_per_cluster[key], replace=False)
+
+            test_indices = test_valid_indices[0:test_cells_per_cluster[key]]
+            valid_indices = test_valid_indices[test_cells_per_cluster[key]:]
+
+            # assign the test/training split
+            for i in test_indices:
+                #sc_raw.obs.set_value(i, 'split', 'test')
+                sc_raw.obs.at[i, 'split'] = 'test'
+
+            for i in valid_indices:
+                #sc_raw.obs.set_value(i, 'split', 'valid')
+                sc_raw.obs.at[i, 'split'] = 'valid'
+    
+        # TODO: move to umap
+        # Show plot of training split
+        self.logger.info("Data split results")
+        print(sc_raw.obs['split'].value_counts())
+        sc.pl.tsne(sc_raw, color=['dataset','cluster','split'], save='_pre_split.png')
 
         # Write to file
+        self.logger.info("Write processed dataset")
         sc_raw.write(filename=self.all_preprocessed_path)
 
     def realDataAnalysis(self):
