@@ -20,6 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--download_data', required=False, default=False, action='store_true')
     parser.add_argument('--preprocess', required=False, default=False, action='store_true')
     parser.add_argument('--real_analysis', required=False, default=False, action='store_true')
+    parser.add_argument('--tf_records', required=False, default=False, action='store_true')
     parsedArgs = parser.parse_args()
 
     logger = logging.getLogger("arsh-gann")
@@ -47,4 +48,10 @@ if __name__ == '__main__':
         logger.info('Analysing real dataset')
         p = Preprocessor(logger)
         p.realDataAnalysis()
+        sys.exit
+
+    # Create TF records
+    if parsedArgs.tf_records:
+        p = Preprocessor(logger)
+        p.createTfRecords()
         sys.exit

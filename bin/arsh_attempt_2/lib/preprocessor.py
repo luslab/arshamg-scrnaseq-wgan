@@ -6,6 +6,7 @@ from os import path
 import random
 import gzip
 import urllib.request
+import collections
 from collections import Counter, namedtuple
 
 import numpy as np
@@ -15,6 +16,7 @@ from biomart import BiomartServer
 from gtfparse import read_gtf
 import scanpy as sc
 import scipy.sparse as sp_sparse
+import tensorflow as tf
 
 SEED = 0
 
@@ -40,6 +42,9 @@ class Preprocessor:
     params_pre_cluster_res = 0.15
     params_pre_test_cells = 0
     params_pre_valid_cells = 500
+    params_train_split_files = 2
+
+    sct = collections.namedtuple('sc', ('barcode', 'count_no', 'genes_no', 'dset', 'cluster'))
 
     def __init__(self, logger):
         self.logger = logger
@@ -460,3 +465,78 @@ class Preprocessor:
 
         sc.tl.tsne(sc_pp)
         sc.pl.tsne(sc_pp, color=['dataset'])
+
+    def createTfRecords(self):
+        self.logger.info('Creating tensor records')
+
+        # Create paths for files
+        train_filenames = [os.path.join("tf", 'train-%s.tfrecords' % i)
+                                for i in range(self.params_train_split_files)]
+        valid_filename = os.path.join("tf", 'validate.tfrecords')
+        test_filename = os.path.join("tf", 'test.tfrecords')
+
+        # Load single cell data
+        sc_raw = sc.read(self.all_preprocessed_path)
+        cell_count = sc_raw.shape[0]
+        gene_count = sc_raw.shape[1]
+        self.logger.info("Cells number is %d , with %d genes per cell." % (cell_count, gene_count))
+
+        # Create TF Writers
+        opt = tf.io.TFRecordOptions(compression_type='GZIP')
+        valid = tf.io.TFRecordWriter(valid_filename, opt)
+        test = tf.io.TFRecordWriter(test_filename, opt)
+        train = [tf.io.TFRecordWriter(filename, opt) for filename in train_filenames]
+
+        #cat = sc_raw.obs['cluster'].cat.categories
+        count = 0
+        for line in sc_raw:
+            # Doesnt stop for some reason
+            if count == cell_count:
+                break
+            count += 1
+
+            dset = line.obs['split'][0]
+
+            # metadata from line
+            scmd = self.sct(barcode=line.obs_names[0],
+                count_no=int(np.sum(line.X)),
+                genes_no=line.obs['n_genes'][0],
+                dset=dset,
+                cluster=line.obs['cluster'][0])
+
+            sc_genes = line.X
+            d = scmd
+
+            flat = sc_genes.flatten()
+            idx = np.nonzero(flat)[0]
+            vals = flat[idx]
+
+            feat_map = {}
+            feat_map['indices'] = tf.train.Feature(int64_list=tf.train.Int64List(value=idx))
+            feat_map['values'] = tf.train.Feature(float_list=tf.train.FloatList(value=vals))
+            feat_map['barcode'] = tf.train.Feature(bytes_list=tf.train.BytesList(value=[str.encode(d.barcode)]))
+            feat_map['genes_no'] = tf.train.Feature(int64_list=tf.train.Int64List(value=[d.genes_no]))
+            feat_map['count_no'] = tf.train.Feature(int64_list=tf.train.Int64List(value=[d.count_no]))
+
+            # add hot encoding for classification problems
+            #feat_map['cluster_1hot'] = tf.train.Feature(
+            #    int64_list=tf.train.Int64List(value=[int(c == cat) for c in cat]))
+            #feat_map['cluster_int'] = tf.train.Feature(int64_list=tf.train.Int64List(value=[int(cat)]))
+
+            example = tf.train.Example(features=tf.train.Features(feature=feat_map))
+            example_str = example.SerializeToString()
+
+            if d.dset == 'test':
+                test.write(example_str)
+            elif d.dset == 'train':
+                train[random.randint(0, self.params_train_split_files - 1)].write(example_str)
+            elif d.dset == 'valid':
+                valid.write(example_str)
+            else:
+                raise ValueError("invalid dataset: %s" % d.dset)
+
+        # Close the file writers
+        test.close()
+        valid.close()
+        for f in train:
+            f.close()
