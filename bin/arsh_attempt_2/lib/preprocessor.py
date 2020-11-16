@@ -3,6 +3,7 @@
 
 import os
 from os import path
+import pathlib
 import random
 import gzip
 import urllib.request
@@ -21,7 +22,9 @@ import tensorflow as tf
 SEED = 0
 
 class Preprocessor:
-    figure_dir = './figures/'
+    data_dir = 'data'
+    figure_dir = 'figures/'
+    tf_dir = 'tf/'
     gtf_path_gz = 'Mus_musculus.GRCm38.99.gtf.gz'
     gtf_path =  'Mus_musculus.GRCm38.99.gtf'
     tpm_yang_path_gz = 'GSE90848_Ana6_basal_hair_bulb_TPM.txt.gz'
@@ -51,17 +54,21 @@ class Preprocessor:
         
         sc.settings.autosave=True
         sc.settings.autoshow=False
-        sc.settings.figdir=self.figure_dir
+        sc.settings.figdir=path.join(self.data_dir, self.figure_dir)
         sc.settings.verbosity=3
         sc.set_figure_params(format='png')
+
+    def create_directories(self):
+        pathlib.Path(path.join(self.data_dir, self.figure_dir)).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(path.join(self.data_dir, self.tf_dir)).mkdir(parents=True, exist_ok=True)
     
     def downloadFile(self, url, file_path_gz, file_path):
-        if path.exists(file_path) is False: 
-            urllib.request.urlretrieve(url, file_path_gz)
-            input = gzip.GzipFile(file_path_gz, 'rb')
+        if path.exists(path.join(self.data_dir, file_path)) is False: 
+            urllib.request.urlretrieve(url, path.join(self.data_dir, file_path_gz))
+            input = gzip.GzipFile(path.join(self.data_dir, file_path_gz), 'rb')
             s = input.read()
             input.close()
-            output = open(file_path, 'wb')
+            output = open(path.join(self.data_dir, file_path), 'wb')
             output.write(s)
             output.close()
 
@@ -91,24 +98,24 @@ class Preprocessor:
                 'attributes': [ 'ensembl_gene_id', 'external_gene_name' ]
             })
 
-            with open(self.gene_tsv_path, 'wb') as output:
+            with open(path.join(self.data_dir, self.gene_tsv_path), 'wb') as output:
                 output.write(search_response.raw.data)
 
     def findTranscriptLengths(self):
         # Check we need to do anything
-        if path.exists(self.gene_length_tsv_path) is True:
+        if path.exists(path.join(self.data_dir,self.gene_length_tsv_path)) is True:
             self.logger.info('Gene length file already exists')
             return
 
         # Convert gtf to csv
-        if path.exists(self.gtf_csv_path) is False:
+        if path.exists(path.join(self.data_dir,self.gtf_csv_path)) is False:
             self.logger.info('Converting gtf to csv')
-            df_gtf = read_gtf(self.gtf_path)
-            df_gtf.to_csv(self.gtf_csv_path)
+            df_gtf = read_gtf(path.join(self.data_dir,self.gtf_path))
+            df_gtf.to_csv(path.join(self.data_dir,self.gtf_csv_path))
 
         # Load gtf file
         self.logger.info('Calculating transcript lengths')
-        df_gtf = pd.read_csv(self.gtf_csv_path, low_memory=False)
+        df_gtf = pd.read_csv(path.join(self.data_dir,self.gtf_csv_path), low_memory=False)
         self.print_df_rowcol('Loaded GTF', df_gtf)
 
         # Calculate feature lengths
@@ -127,17 +134,17 @@ class Preprocessor:
         df_gtf_transcript_len = df_gtf_transcript_len / 1000
 
         # Write to file
-        df_gtf_transcript_len.to_csv(self.gene_length_tsv_path)
+        df_gtf_transcript_len.to_csv(path.join(self.data_dir,self.gene_length_tsv_path))
 
     def preprocessRnaData(self):
 
-        if path.exists(self.tpm_combined_path) is True:
+        if path.exists(path.join(self.data_dir,self.tpm_combined_path)) is True:
             self.logger.info('Preprocessed file already exists')
             return
 
         # Get gene names
         self.logger.info('Loading gene names')
-        df_gene_names = pd.read_csv(self.gene_tsv_path, sep='\t', header=None)
+        df_gene_names = pd.read_csv(path.join(self.data_dir,self.gene_tsv_path), sep='\t', header=None)
         df_gene_names.columns = ['gene_id', "gene_name"]
         df_gene_names.index = df_gene_names.gene_id
         df_gene_names = df_gene_names.drop('gene_id', axis=1)
@@ -145,14 +152,14 @@ class Preprocessor:
 
         # Create reverse lookup
         self.logger.info('Creating name to id lookup')
-        df_gene_name2id = pd.read_csv(self.gene_tsv_path, sep='\t', header=None)
+        df_gene_name2id = pd.read_csv(path.join(self.data_dir,self.gene_tsv_path), sep='\t', header=None)
         df_gene_name2id.columns = ['gene_id', "gene_name"]
         df_gene_name2id.index = df_gene_name2id.gene_name
         df_gene_name2id = df_gene_name2id.drop('gene_name', axis=1)
 
         # Load transcript lengths
         self.logger.info('Loading transcript lengths')
-        df_gtf_transcript_len = pd.read_csv(self.gene_length_tsv_path)
+        df_gtf_transcript_len = pd.read_csv(path.join(self.data_dir,self.gene_length_tsv_path))
         df_gtf_transcript_len.index = df_gtf_transcript_len.gene_id
         df_gtf_transcript_len = df_gtf_transcript_len.drop('gene_id', axis=1)
 
@@ -162,7 +169,7 @@ class Preprocessor:
 
         # Load in data
         self.logger.info('Loading and processing Yang1 dataset')
-        df_tpm_1 = pd.read_csv(self.tpm_yang_path, sep='\t')
+        df_tpm_1 = pd.read_csv(path.join(self.data_dir,self.tpm_yang_path), sep='\t')
         self.print_df_rowcol('Loaded Yang1', df_tpm_1)
 
         # Clean the yang1 dataset to get the gene names, call `.shape` to check we havent filtered anything
@@ -197,7 +204,7 @@ class Preprocessor:
 
         # Load in Yang2
         self.logger.info('Loading and processing Yang2 dataset')
-        df_tpm_2 = pd.read_csv(self.tpm_yang_path2, sep='\t')
+        df_tpm_2 = pd.read_csv(path.join(self.data_dir,self.tpm_yang_path2), sep='\t')
         self.print_df_rowcol('Loaded Yang2', df_tpm_2)
 
         # Split gene ids on _ and load into a new data frame and set the columns
@@ -230,7 +237,7 @@ class Preprocessor:
 
         # Load data
         self.logger.info('Loading and processing Joost dataset')
-        df_rpk = pd.read_csv(self.fpkm_joost_path, sep='\t')
+        df_rpk = pd.read_csv(path.join(self.data_dir, self.fpkm_joost_path), sep='\t')
         self.print_df_rowcol('Loaded Kasper', df_rpk)
 
         # Convert from FPKM (Fragments Per Kilobase Million) to TPM (Transcripts Per Kilobase Million)
@@ -272,7 +279,7 @@ class Preprocessor:
 
         # Load data
         self.logger.info('Loading and processing Ghahramani dataset')
-        df_tpm_4 = pd.read_csv(self.tpm_ghahramani_path, sep=',')
+        df_tpm_4 = pd.read_csv(path.join(self.data_dir, self.tpm_ghahramani_path), sep=',')
         self.print_df_rowcol('Loaded Ghahramani', df_tpm_4)
 
         # Rename gene name column and set to index
@@ -309,17 +316,17 @@ class Preprocessor:
         #self.print_df_rowcol('Shape after switching to gene names', df_tpm_combined)
 
         # Write to file
-        df_tpm_combined.to_csv(self.tpm_combined_path)
+        df_tpm_combined.to_csv(path.join(self.data_dir, self.tpm_combined_path))
 
     def annotateScData(self):
-        if path.exists(self.h5ad_combined_path) is True:
+        if path.exists(path.join(self.data_dir, self.h5ad_combined_path)) is True:
             self.logger.info('Preprocessed file already exists')
             return
             
         self.logger.info('Annotating dataset')
 
         # Load up as anndata object
-        sc_data = sc.read_csv(self.tpm_combined_path)
+        sc_data = sc.read_csv(path.join(self.data_dir, self.tpm_combined_path))
 
         self.logger.info('Annotating data set')
 
@@ -329,7 +336,7 @@ class Preprocessor:
         self.logger.info('Annotating gene names')
 
         # Load gene name lookup
-        df_gene_names = pd.read_csv(self.gene_tsv_path, sep='\t', header=None)
+        df_gene_names = pd.read_csv(path.join(self.data_dir, self.gene_tsv_path), sep='\t', header=None)
         df_gene_names.columns = ['gene_id', "gene_name"]
         df_gene_names.index = df_gene_names.gene_id
         df_gene_names = df_gene_names.drop('gene_id', axis=1)
@@ -339,7 +346,7 @@ class Preprocessor:
         sc_data.obs = sc_data.obs.join(df_gene_names, lsuffix='', rsuffix='', how='left')
 
         # Write to file
-        sc_data.write(filename=self.h5ad_combined_path)
+        sc_data.write(filename=path.join(self.data_dir, self.h5ad_combined_path))
 
     def preprocessScData(self):
         #if path.exists(self.all_preprocessed_path) is True:
@@ -347,7 +354,7 @@ class Preprocessor:
         #    return
 
         self.logger.info('Preprocessing single cell data')
-        sc_raw = sc.read(self.h5ad_combined_path)
+        sc_raw = sc.read(path.join(self.data_dir, self.h5ad_combined_path))
         sc_raw = sc_raw.transpose()
 
         if sp_sparse.issparse(sc_raw.X):
@@ -450,13 +457,13 @@ class Preprocessor:
 
         # Write to file
         self.logger.info("Write processed dataset")
-        sc_raw.write(filename=self.all_preprocessed_path)
+        sc_raw.write(filename=path.join(self.data_dir, self.all_preprocessed_path))
 
     def realDataAnalysis(self):
         #sc.logging.print_header()
 
         # Load data
-        sc_pp = sc.read(self.all_preprocessed_path)
+        sc_pp = sc.read(path.join(self.data_dir, self.all_preprocessed_path))
 
         # Top 20 highest expressed genes
         #sc.pl.highest_expr_genes(sc_pp, n_top=20, gene_symbols='gene_name', )
@@ -470,13 +477,13 @@ class Preprocessor:
         self.logger.info('Creating tensor records')
 
         # Create paths for files
-        train_filenames = [os.path.join("tf", 'train-%s.tfrecords' % i)
+        train_filenames = [os.path.join(self.data_dir, self.tf_dir, 'train-%s.tfrecords' % i)
                                 for i in range(self.params_train_split_files)]
-        valid_filename = os.path.join("tf", 'validate.tfrecords')
-        test_filename = os.path.join("tf", 'test.tfrecords')
+        valid_filename = os.path.join(self.data_dir, "tf", 'validate.tfrecords')
+        test_filename = os.path.join(self.data_dir, "tf", 'test.tfrecords')
 
         # Load single cell data
-        sc_raw = sc.read(self.all_preprocessed_path)
+        sc_raw = sc.read(os.path.join(self.data_dir, self.all_preprocessed_path))
         cell_count = sc_raw.shape[0]
         gene_count = sc_raw.shape[1]
         self.logger.info("Cells number is %d , with %d genes per cell." % (cell_count, gene_count))
