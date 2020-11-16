@@ -12,6 +12,7 @@ import datetime
 import os
 
 from lib.preprocessor import Preprocessor
+from lib.nn import Net
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
@@ -22,6 +23,8 @@ if __name__ == '__main__':
     parser.add_argument('--real_analysis', required=False, default=False, action='store_true')
     parser.add_argument('--tf_records', required=False, default=False, action='store_true')
     parser.add_argument('--all_pre', required=False, default=False, action='store_true')
+    parser.add_argument('--train', required=False, default=False, action='store_true')
+    parser.add_argument('--create_movie', required=False, default=False, action='store_true')
     parsedArgs = parser.parse_args()
 
     logger = logging.getLogger("arsh-gann")
@@ -69,3 +72,19 @@ if __name__ == '__main__':
         p.realDataAnalysis()
         p.createTfRecords()
         sys.exit
+
+    if parsedArgs.train:
+        logger.info('Training nn...')
+        number_epochs = int(parsedArgs.epochs)
+        write_freq = int(parsedArgs.write_freq)
+        output_dir = parsedArgs.out_dir
+
+        n = Net(logger, number_epochs, write_freq, output_dir)
+        n.create_directories()
+        n.train()
+        sys.exit
+
+    # if parsedArgs.movie:
+    #     params_training_output = parsedArgs.training_output
+    #     _create_movie_from_images()
+    #     sys.exit

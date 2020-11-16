@@ -400,6 +400,7 @@ class Preprocessor:
         self.logger.info(cluster_ratios)
 
         # TODO: Total count normalise the data?
+        #sc.pp.normalize_per_cell(sc_raw, counts_per_cell_after=params_pre_scale)
 
         # Setup random
         random.seed(SEED)
