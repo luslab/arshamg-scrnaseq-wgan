@@ -540,3 +540,5 @@ class Preprocessor:
         valid.close()
         for f in train:
             f.close()
+
+        self.logger.info("Tensor write complete - wrote %d examples" % count)
