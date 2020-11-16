@@ -56,6 +56,7 @@ if __name__ == '__main__':
         p.createTfRecords()
         sys.exit
 
+    # All pre-processing 
     if parsedArgs.all_pre:
         logger.info('Downloading arsham dataset...')
         p.downloadArshamData()
