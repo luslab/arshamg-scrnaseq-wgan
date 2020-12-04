@@ -24,15 +24,12 @@ process runGann {
   publishDir "${params.outdir}/gann",
     mode: "copy", overwrite: true
 
-    input:
-      path(data_dir)
-
     output:
       path("*.*")
 
     shell:
       """
-      python $baseDir/bin/arsh_attempt_2/main_train.py --train --epochs ${params.epochs} --write_freq ${params.writefreq} --output_dir . --data_dir ${data_dir}
+      python $baseDir/bin/arsh_attempt_2/main_train.py --train --epochs ${params.epochs} --write_freq ${params.writefreq} --output_dir . --data_dir ${params.data_dir}
       """
 }
 
@@ -40,11 +37,5 @@ process runGann {
 
 // Run workflow
 workflow {
-
-  Channel
-    .from(params.data_dir)
-    .set {ch_data}
-
-    // run gann
-    runGann(ch_data)
+    runGann()
 }
