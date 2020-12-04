@@ -17,7 +17,6 @@ import cv2
 
 class Net:
     # Paths
-    data_dir = 'data'
     tf_dir = 'tf'
     figure_dir = 'figures/'
     profile_dir = 'profiles'
@@ -56,11 +55,12 @@ class Net:
         dtype=tf.float32,
         size=train_gene_count)}
 
-    def __init__(self, logger, number_epochs, write_freq, output_dir):
+    def __init__(self, logger, number_epochs, write_freq, output_dir, data_dir = 'data'):
         self.logger = logger
         self.train_number_epochs = number_epochs
         self.train_write_freq = write_freq
         self.output_dir = output_dir
+        self.data_dir = data_dir
         
         #sc.settings.autosave=True
         sc.settings.autoshow=False

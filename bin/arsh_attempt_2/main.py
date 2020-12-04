@@ -29,6 +29,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', required=False, default=1)
     parser.add_argument('--write_freq', required=False, default=1)
     parser.add_argument('--output_dir', required=False, default='output')
+    parser.add_argument('--data_dir', required=False, default='data')
     parsedArgs = parser.parse_args()
 
     logger = logging.getLogger("arsh-gann")
@@ -82,8 +83,9 @@ if __name__ == '__main__':
         number_epochs = int(parsedArgs.epochs)
         write_freq = int(parsedArgs.write_freq)
         output_dir = parsedArgs.output_dir
+        data_dir = parsedArgs.data_dir
 
-        n = Net(logger, number_epochs, write_freq, output_dir)
+        n = Net(logger, number_epochs, write_freq, output_dir, data_dir='data')
         n.create_directories()
         n.train()
         sys.exit
