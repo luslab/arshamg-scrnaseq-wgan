@@ -1,0 +1,4 @@
+[submodule "nf-modules"]
+	path = nf-modules
+	url = https://github.com/luslab/luslab-nf-modules
+	branch = dev
