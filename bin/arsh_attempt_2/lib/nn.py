@@ -20,7 +20,6 @@ class Net:
     tf_dir = 'tf'
     figure_dir = 'figures/'
     profile_dir = 'profiles'
-    output_dir = 'output'
     input_data = 'all_preprocessed.h5ad'
 
     # NN Params
