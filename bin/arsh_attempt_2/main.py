@@ -85,8 +85,6 @@ if __name__ == '__main__':
         output_dir = parsedArgs.output_dir
         data_dir = parsedArgs.data_dir
 
-        logger.info(data_dir)
-
         n = Net(logger, number_epochs, write_freq, output_dir, data_dir)
         n.create_directories()
         n.train()
