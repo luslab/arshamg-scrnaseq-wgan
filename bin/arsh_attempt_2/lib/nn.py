@@ -20,6 +20,7 @@ class Net:
     data_dir = 'data'
     tf_dir = 'tf'
     figure_dir = 'figures/'
+    profile_dir = 'profiles'
     output_dir = 'output'
     input_data = 'all_preprocessed.h5ad'
 
@@ -85,6 +86,7 @@ class Net:
     def create_directories(self):
         pathlib.Path(self.output_dir).mkdir(parents=True, exist_ok=True)
         pathlib.Path(os.path.join(self.output_dir, self.figure_dir)).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(os.path.join(self.output_dir, self.profile_dir)).mkdir(parents=True, exist_ok=True)
         #pathlib.Path(path.join(self.data_dir, self.tf_dir)).mkdir(parents=True, exist_ok=True)
 
     def setup_tensorboard(self):
@@ -188,7 +190,7 @@ class Net:
     def generate_example_profiles(self, generator, df_gene_names, sc_test, epoch):
         # Generate cell examples
         df_gen_prof = self.generate_profile(generator, self.example_dataset_batch_size, 'gencell_ep' + str(epoch) + '_', df_gene_names, epoch)
-        gen_prof_path = os.path.join(self.output_dir, "gen_profiles","gen_prof_" + str(epoch) + ".csv")
+        gen_prof_path = os.path.join(self.output_dir, self.profile_dir,"gen_prof_" + str(epoch) + ".csv")
         df_gen_prof.to_csv(gen_prof_path)
 
         # Load and format the generated cell profiles
@@ -314,8 +316,8 @@ class Net:
         discriminator = self.create_discriminator()
 
         # Print summary
-        generator.summary()
-        discriminator.summary()
+        #generator.summary()
+        #discriminator.summary()
 
         # Create optimizers
         generator_optimizer = tf.keras.optimizers.Adam(learning_rate=self.nn_learning_rate, amsgrad=True)
