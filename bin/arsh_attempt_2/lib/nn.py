@@ -55,7 +55,7 @@ class Net:
         dtype=tf.float32,
         size=train_gene_count)}
 
-    def __init__(self, logger, number_epochs, write_freq, output_dir, data_dir = 'data'):
+    def __init__(self, logger, number_epochs, write_freq, output_dir, data_dir):
         self.logger = logger
         self.train_number_epochs = number_epochs
         self.train_write_freq = write_freq
