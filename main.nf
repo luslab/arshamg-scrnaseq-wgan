@@ -25,7 +25,9 @@ process runGann {
     mode: "copy", overwrite: true
 
     output:
-      path("*.*")
+      path("figures")
+      path("logs")
+      path("profiles")
 
     shell:
       """
