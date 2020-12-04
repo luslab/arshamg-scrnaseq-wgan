@@ -36,7 +36,7 @@ process runGann {
 
     shell:
       """
-      python $baseDir/bin/arsh_attempt_2/main_train.py --train --epochs ${params.epochs} --write_freq ${params.writefreq} --output_dir .
+      python $baseDir/bin/arsh_attempt_2/main_train.py --train --epochs ${params.epochs} --write_freq ${params.writefreq} --output_dir . --data_dir ${params.data_dir}
       """
 }
 
