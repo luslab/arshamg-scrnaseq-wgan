@@ -32,12 +32,11 @@ process runGann {
       path(datadir)
 
     output:
-      path("pbmc_output/*")
+      path("*.*")
 
     shell:
       """
-      mkdir pbmc_output pbmc_output/figures pbmc_output/logs pbmc_output/gen_profiles
-      python $baseDir/bin/scgan/main.py --pbmc_train --data_path $datadir --training_output pbmc_output --epochs ${params.epochs} --write_freq ${params.writefreq}
+      python $baseDir/bin/arsh_attempt_2/main.py --train --epochs ${params.epochs} --write_freq ${params.writefreq} --output_dir .
       """
 }
 
