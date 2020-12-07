@@ -46,6 +46,7 @@ class Preprocessor:
     params_pre_test_cells = 0
     params_pre_valid_cells = 500
     params_train_split_files = 2
+    params_pre_scale = 20000
 
     sct = collections.namedtuple('sc', ('barcode', 'count_no', 'genes_no', 'dset', 'cluster'))
 
@@ -399,8 +400,10 @@ class Preprocessor:
         self.logger.info("Clustering of the raw data is done to %d clusters." % clusters_no)
         self.logger.info(cluster_ratios)
 
+        #print(sc_raw.X.sum(axis=0).max())
+
         # TODO: Total count normalise the data?
-        #sc.pp.normalize_per_cell(sc_raw, counts_per_cell_after=params_pre_scale)
+        sc.pp.normalize_per_cell(sc_raw, counts_per_cell_after=self.params_pre_scale)
 
         # Setup random
         random.seed(SEED)

@@ -30,6 +30,8 @@ class Net:
     train_write_freq = 1 # How often to write a checkpoint and save some example images
     example_dataset_batch_size = 500 # How many profiles to generate for an example dataset
 
+    params_pre_scale = 20000
+
     # NN shape
     nn_latent_var_size = 100
     nn_gen_l1_size = 600
@@ -132,7 +134,7 @@ class Net:
         model.add(layers.LeakyReLU())
 
         # Add scaling layer
-        #model.add(ScaleCell(scale_factor=params_pre_scale))
+        model.add(ScaleCell(scale_factor=self.params_pre_scale))
     
         return model
 
@@ -176,7 +178,7 @@ class Net:
         df_gen_prof = df_gen_prof.add_prefix(label)
 
         # Scale back to expression data
-        #df_gen_prof = df_gen_prof * float(params_pre_scale)
+        df_gen_prof = df_gen_prof * float(self.params_pre_scale)
 
         # Get limits
         gen_min = df_gen_prof.min().min()
