@@ -15,6 +15,8 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import cv2
 
+from .scalecell import ScaleCell
+
 class Net:
     # Paths
     tf_dir = 'tf'

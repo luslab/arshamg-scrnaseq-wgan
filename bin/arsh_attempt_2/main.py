@@ -42,7 +42,6 @@ if __name__ == '__main__':
     if parsedArgs.download_data:
         logger.info('Downloading arsham dataset...')
         p.downloadArshamData()
-        sys.exit
 
     # Preprocessor
     if parsedArgs.preprocess:
@@ -51,18 +50,15 @@ if __name__ == '__main__':
         p.preprocessRnaData()
         p.annotateScData()
         p.preprocessScData()
-        sys.exit
 
     # Real data analysis
     if parsedArgs.real_analysis:
         logger.info('Analysing real dataset')
         p.realDataAnalysis()
-        sys.exit
 
     # Create TF records
     if parsedArgs.tf_records:
         p.createTfRecords()
-        sys.exit
 
     # All pre-processing 
     if parsedArgs.all_pre:
@@ -76,7 +72,6 @@ if __name__ == '__main__':
         logger.info('Analysing real dataset')
         p.realDataAnalysis()
         p.createTfRecords()
-        sys.exit
 
     if parsedArgs.train:
         logger.info('Training nn...')
@@ -88,7 +83,6 @@ if __name__ == '__main__':
         n = Net(logger, number_epochs, write_freq, output_dir, data_dir)
         n.create_directories()
         n.train()
-        sys.exit
 
     # if parsedArgs.movie:
     #     params_training_output = parsedArgs.training_output
