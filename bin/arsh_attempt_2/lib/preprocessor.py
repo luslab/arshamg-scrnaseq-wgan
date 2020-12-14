@@ -44,8 +44,8 @@ class Preprocessor:
 
     params_pre_cluster_res = 0.15
     params_pre_test_cells = 0
-    params_pre_valid_cells = 500
-    params_train_split_files = 2
+    params_pre_valid_cells = 0
+    params_train_split_files = 1
     params_pre_scale = 20000
 
     sct = collections.namedtuple('sc', ('barcode', 'count_no', 'genes_no', 'dset', 'cluster'))
@@ -206,8 +206,14 @@ class Preprocessor:
         # Prefix for dataset
         df_tpm_2 = df_tpm_2.add_prefix('yang2_')
 
-        df_tpm_combined = df_tpm_1.join(df_tpm_2, lsuffix='', rsuffix='_other', how='inner')
-        return df_tpm_combined
+        # Merge
+        df_tpm = df_tpm_1.join(df_tpm_2, lsuffix='', rsuffix='_other', how='inner')
+
+        # Calculate stats
+        cell_counts = pd.DataFrame(df_tpm.sum(axis=0))
+        cell_counts.to_csv(path.join(self.data_dir, 'yang_cell_counts.csv'))
+
+        return df_tpm
 
     def processJoost(self, df_gene_name2id):
         # *****************************************************************************
@@ -257,9 +263,9 @@ class Preprocessor:
         df_tpm = df_tpm.add_prefix('jhoost_')
 
         # Calculate stats
-        #cell_counts = pd.DataFrame(df_tpm.sum(axis=0))
-        #cell_counts.to_csv(path.join(self.data_dir, 'joost_cell_counts.csv'))
-        #df_scaling_factor.to_csv(path.join(self.data_dir, 'joost_scale_factors.csv'))
+        cell_counts = pd.DataFrame(df_tpm.sum(axis=0))
+        cell_counts.to_csv(path.join(self.data_dir, 'joost_cell_counts.csv'))
+        df_scaling_factor.to_csv(path.join(self.data_dir, 'joost_scale_factors.csv'))
 
         # Return
         return df_tpm
@@ -288,12 +294,16 @@ class Preprocessor:
         # Prefix for dataset
         df_tpm_4 = df_tpm_4.add_prefix('ghahr_')
 
+        # Calculate stats
+        cell_counts = pd.DataFrame(df_tpm_4.sum(axis=0))
+        cell_counts.to_csv(path.join(self.data_dir, 'gh_cell_counts.csv'))
+
         return df_tpm_4
 
     def preprocessRnaData(self):
-        # if path.exists(path.join(self.data_dir,self.tpm_combined_path)) is True:
-        #     self.logger.info('Preprocessed file already exists')
-        #     return
+        if path.exists(path.join(self.data_dir,self.tpm_combined_path)) is True:
+            self.logger.info('Preprocessed file already exists')
+            return
 
         # Get gene names
         self.logger.info('Loading gene names')
@@ -310,9 +320,9 @@ class Preprocessor:
         df_gene_name2id.index = df_gene_name2id.gene_name
         df_gene_name2id = df_gene_name2id.drop('gene_name', axis=1)
 
-        #df_yang = self.processYang()
+        df_yang = self.processYang()
         df_joost = self.processJoost(df_gene_name2id) 
-        #df_gh = self.processGhahramai(df_gene_name2id)
+        df_gh = self.processGhahramai(df_gene_name2id)
 
         # *****************************************************************************
         # Merge
@@ -321,9 +331,8 @@ class Preprocessor:
         self.logger.info('Merging datasets')
 
         # Create merged dataset from all subsets
-        #df_tpm_combined = df_yang.join(df_joost, lsuffix='', rsuffix='_other', how='inner')
-        #df_tpm_combined = df_tpm_combined.join(df_gh, lsuffix='', rsuffix='_other', how='inner')
-        df_tpm_combined = df_joost
+        df_tpm_combined = df_yang.join(df_joost, lsuffix='', rsuffix='_other', how='inner')
+        df_tpm_combined = df_tpm_combined.join(df_gh, lsuffix='', rsuffix='_other', how='inner')
 
         self.print_df_rowcol('Shape after merging', df_tpm_combined)
 
@@ -335,6 +344,11 @@ class Preprocessor:
 
         # Write to file
         df_tpm_combined.to_csv(path.join(self.data_dir, self.tpm_combined_path))
+
+        # Get limits
+        r_min = df_tpm_combined.min().min()
+        r_max = df_tpm_combined.max().max()
+        self.logger.info('Real prof min/max ' + str(r_min) + ' - ' + str(r_max))
 
     def annotateScData(self):
         if path.exists(path.join(self.data_dir, self.h5ad_combined_path)) is True:
@@ -367,9 +381,9 @@ class Preprocessor:
         sc_data.write(filename=path.join(self.data_dir, self.h5ad_combined_path))
 
     def preprocessScData(self):
-        #if path.exists(self.all_preprocessed_path) is True:
-        #    self.logger.info('Preprocessed file already exists')
-        #    return
+        if path.exists(self.all_preprocessed_path) is True:
+            self.logger.info('Preprocessed file already exists')
+            return
 
         self.logger.info('Preprocessing single cell data')
         sc_raw = sc.read(path.join(self.data_dir, self.h5ad_combined_path))
@@ -388,28 +402,15 @@ class Preprocessor:
         sc.tl.pca(clustered, n_comps=50) # Get pca of this?
         sc.pl.pca(clustered, color=['dataset'], save='_pre_post_zheng17.png')
 
-
-        cell_counts = pd.DataFrame(sc_raw.X.sum(axis=1))
-        df = pd.DataFrame(sc_raw.obs['dataset'])
-        cell_counts.to_csv('~/dev/cell_counts.csv')
-        df.to_csv('~/dev/dataset.csv')
-        print(df)
-        for val in cell_counts:
-            print(val)
-        # print(sc_raw.X.sum(axis=0))
-        # print(sc_raw.X.sum(axis=1))
-        # print(sc_raw.X.sum(axis=0).max())
-        # print(.max())
-
         # Log the data matrix (log2(TPM+1))
         #sc.pp.log1p(sc_raw, base=2)
 
         # Filter cells
-        #sc.pp.filter_cells(sc_raw, min_genes=1000)
+        sc.pp.filter_cells(sc_raw, min_genes=1000)
         self.logger.info("Cells remaining: " + str(sc_raw.n_obs))
 
         # Filter gene
-        #sc.pp.filter_genes(sc_raw, min_cells=500)
+        sc.pp.filter_genes(sc_raw, min_cells=500)
         self.logger.info("Genes remaining: " + str(len(sc_raw.var.index)))
 
         # Clustering
@@ -430,9 +431,7 @@ class Preprocessor:
         self.logger.info("Clustering of the raw data is done to %d clusters." % clusters_no)
         self.logger.info(cluster_ratios)
 
-        #print(sc_raw.X.sum(axis=0).max())
-
-        # TODO: Total count normalise the data?
+        # Total count normalise the data
         #sc.pp.normalize_per_cell(sc_raw, counts_per_cell_after=self.params_pre_scale)
 
         # Setup random
@@ -559,7 +558,7 @@ class Preprocessor:
             feat_map['genes_no'] = tf.train.Feature(int64_list=tf.train.Int64List(value=[d.genes_no]))
             feat_map['count_no'] = tf.train.Feature(int64_list=tf.train.Int64List(value=[d.count_no]))
 
-            self.logger.info('Total:' + str(d.count_no) + ' - Min:' + str(vals.min()) + ' - Max:' + str(vals.max()))
+            #self.logger.info('Total:' + str(d.count_no) + ' - Min:' + str(vals.min()) + ' - Max:' + str(vals.max()))
 
             # add hot encoding for classification problems
             #feat_map['cluster_1hot'] = tf.train.Feature(

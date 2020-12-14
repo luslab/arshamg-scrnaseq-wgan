@@ -136,7 +136,7 @@ class Net:
         model.add(layers.LeakyReLU())
 
         # Add scaling layer
-        model.add(ScaleCell(scale_factor=self.params_pre_scale))
+        #model.add(ScaleCell(scale_factor=self.params_pre_scale))
     
         return model
 
@@ -180,7 +180,7 @@ class Net:
         df_gen_prof = df_gen_prof.add_prefix(label)
 
         # Scale back to expression data
-        df_gen_prof = df_gen_prof * float(self.params_pre_scale)
+        #df_gen_prof = df_gen_prof * float(self.params_pre_scale)
 
         # Get limits
         gen_min = df_gen_prof.min().min()
@@ -201,6 +201,7 @@ class Net:
         sc_gen = sc_gen.transpose()
         dataset_label = np.repeat('gen', sc_gen.shape[0])
         sc_gen.obs['dataset'] = dataset_label
+        sc_gen.obs['split'] = dataset_label
 
         # Merge with raw
         sc_combined = sc_test.concatenate(sc_gen)
@@ -285,7 +286,8 @@ class Net:
         self.logger.info("Cells number is %d , with %d genes per cell." % (cell_count, gene_count))
 
         # Get the validation data
-        sc_test = sc_raw[sc_raw.obs['split'] == "valid", :]
+        sc_test = sc_raw
+        #sc_test = sc_raw[sc_raw.obs['split'] == "valid", :]
 
         # Create gene name array
         df_gene_names = pd.DataFrame(sc_raw.var_names)

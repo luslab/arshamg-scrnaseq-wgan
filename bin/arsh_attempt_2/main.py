@@ -48,8 +48,8 @@ if __name__ == '__main__':
         logger.info('Preprocessing arsham dataset')
         p.findTranscriptLengths()
         p.preprocessRnaData()
-        #p.annotateScData()
-        #p.preprocessScData()
+        p.annotateScData()
+        p.preprocessScData()
 
     # Real data analysis
     if parsedArgs.real_analysis:
