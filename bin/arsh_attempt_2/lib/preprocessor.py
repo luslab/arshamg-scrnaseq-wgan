@@ -137,33 +137,7 @@ class Preprocessor:
         # Write to file
         df_gtf_transcript_len.to_csv(path.join(self.data_dir,self.gene_length_tsv_path))
 
-    def preprocessRnaData(self):
-
-        if path.exists(path.join(self.data_dir,self.tpm_combined_path)) is True:
-            self.logger.info('Preprocessed file already exists')
-            return
-
-        # Get gene names
-        self.logger.info('Loading gene names')
-        df_gene_names = pd.read_csv(path.join(self.data_dir,self.gene_tsv_path), sep='\t', header=None)
-        df_gene_names.columns = ['gene_id', "gene_name"]
-        df_gene_names.index = df_gene_names.gene_id
-        df_gene_names = df_gene_names.drop('gene_id', axis=1)
-        self.print_df_rowcol('Loaded gene names', df_gene_names)
-
-        # Create reverse lookup
-        self.logger.info('Creating name to id lookup')
-        df_gene_name2id = pd.read_csv(path.join(self.data_dir,self.gene_tsv_path), sep='\t', header=None)
-        df_gene_name2id.columns = ['gene_id', "gene_name"]
-        df_gene_name2id.index = df_gene_name2id.gene_name
-        df_gene_name2id = df_gene_name2id.drop('gene_name', axis=1)
-
-        # Load transcript lengths
-        self.logger.info('Loading transcript lengths')
-        df_gtf_transcript_len = pd.read_csv(path.join(self.data_dir,self.gene_length_tsv_path))
-        df_gtf_transcript_len.index = df_gtf_transcript_len.gene_id
-        df_gtf_transcript_len = df_gtf_transcript_len.drop('gene_id', axis=1)
-
+    def processYang(self):
         # *****************************************************************************
         # YANG 1
         # *****************************************************************************
@@ -232,48 +206,65 @@ class Preprocessor:
         # Prefix for dataset
         df_tpm_2 = df_tpm_2.add_prefix('yang2_')
 
+        df_tpm_combined = df_tpm_1.join(df_tpm_2, lsuffix='', rsuffix='_other', how='inner')
+        return df_tpm_combined
+
+    def processJoost(self, df_gene_name2id):
         # *****************************************************************************
         # Joost / Kasper
         # *****************************************************************************
 
+        # Load transcript lengths
+        self.logger.info('Loading transcript lengths')
+        df_gtf_transcript_len = pd.read_csv(path.join(self.data_dir,self.gene_length_tsv_path))
+        df_gtf_transcript_len.index = df_gtf_transcript_len.gene_id
+        df_gtf_transcript_len = df_gtf_transcript_len.drop('gene_id', axis=1)
+
         # Load data
         self.logger.info('Loading and processing Joost dataset')
-        df_rpk = pd.read_csv(path.join(self.data_dir, self.fpkm_joost_path), sep='\t')
-        self.print_df_rowcol('Loaded Kasper', df_rpk)
+        df_joost = pd.read_csv(path.join(self.data_dir, self.fpkm_joost_path), sep='\t')
+        self.print_df_rowcol('Loaded Kasper', df_joost)
 
-        # Convert from FPKM (Fragments Per Kilobase Million) to TPM (Transcripts Per Kilobase Million)
+        # Convert from Raw counts to TPM
 
         # Rename gene/cell column
-        df_rpk.rename( columns={'Gene\Cell':'gene_name'}, inplace=True)
-        df_rpk.index = df_rpk['gene_name']
+        df_joost.rename( columns={'Gene\Cell':'gene_name'}, inplace=True)
+        df_joost.index = df_joost['gene_name']
 
         # Insert gene_id into data
-        df_rpk_merged = df_rpk
-        df_rpk_merged = df_rpk_merged.drop('gene_name', axis=1)
-        df_rpk_merged = df_gene_name2id.join(df_rpk_merged, lsuffix='', rsuffix='', how='inner')
-        df_rpk_merged.index = df_rpk_merged.gene_id
-        df_rpk_merged = df_rpk_merged.drop('gene_id', axis=1)
-        self.print_df_rowcol('Shape after merging gene ids', df_rpk_merged)
-
+        df_joost_merged = df_joost
+        df_joost_merged = df_joost_merged.drop('gene_name', axis=1)
+        df_joost_merged = df_gene_name2id.join(df_joost_merged, lsuffix='', rsuffix='', how='inner')
+        df_joost_merged.index = df_joost_merged.gene_id
+        df_joost_merged = df_joost_merged.drop('gene_id', axis=1)
+        self.print_df_rowcol('Shape after merging gene ids', df_joost_merged)
 
         # Get length of each gene into data frame
-        df_rpk_merged_len = df_gtf_transcript_len.join(df_rpk_merged, lsuffix='', rsuffix='', how='inner')
-        self.print_df_rowcol('Shape after merging gene feature_len', df_rpk_merged_len)
-
-        # Sum the read counts per sample
-        df_scaling_factor = pd.DataFrame(df_rpk_merged_len.sum(axis=0) / 1000000)
-        df_scaling_factor.columns = ['scaling_factor']
-        df_scaling_factor = df_scaling_factor.drop('feature_len')
+        df_joost_merged_len = df_gtf_transcript_len.join(df_joost_merged, lsuffix='', rsuffix='', how='inner')
+        self.print_df_rowcol('Shape after merging gene feature_len', df_joost_merged_len)
 
         # Divide the read counts by the length of each gene in kilobases. This gives you reads per kilobase (RPK)
-        df_rpk_merged_len = df_rpk_merged_len.iloc[:,1:].div(df_rpk_merged_len.feature_len, axis=0)
+        df_joost_merged = df_joost_merged_len.iloc[:,1:].div(df_joost_merged_len.feature_len, axis=0)
+
+        # Sum the read counts per sample and divde by 1 million
+        df_scaling_factor = pd.DataFrame(df_joost_merged.sum(axis=0) / 1000000)
+        df_scaling_factor.columns = ['scaling_factor']
 
         # Divide the RPK values by the “per million” scaling factor. This gives you TPM.
-        df_tpm_3 = df_rpk_merged_len.div(df_scaling_factor.scaling_factor, axis=1)
+        df_tpm = df_joost_merged.div(df_scaling_factor.scaling_factor, axis=1)
 
         # Prefix for dataset
-        df_tpm_3 = df_tpm_3.add_prefix('jhoos_')
+        df_tpm = df_tpm.add_prefix('jhoost_')
 
+        # Calculate stats
+        #cell_counts = pd.DataFrame(df_tpm.sum(axis=0))
+        #cell_counts.to_csv(path.join(self.data_dir, 'joost_cell_counts.csv'))
+        #df_scaling_factor.to_csv(path.join(self.data_dir, 'joost_scale_factors.csv'))
+
+        # Return
+        return df_tpm
+    
+    def processGhahramai(self, df_gene_name2id):
         # *****************************************************************************
         # Ghahramani
         # *****************************************************************************
@@ -297,6 +288,32 @@ class Preprocessor:
         # Prefix for dataset
         df_tpm_4 = df_tpm_4.add_prefix('ghahr_')
 
+        return df_tpm_4
+
+    def preprocessRnaData(self):
+        # if path.exists(path.join(self.data_dir,self.tpm_combined_path)) is True:
+        #     self.logger.info('Preprocessed file already exists')
+        #     return
+
+        # Get gene names
+        self.logger.info('Loading gene names')
+        df_gene_names = pd.read_csv(path.join(self.data_dir,self.gene_tsv_path), sep='\t', header=None)
+        df_gene_names.columns = ['gene_id', "gene_name"]
+        df_gene_names.index = df_gene_names.gene_id
+        df_gene_names = df_gene_names.drop('gene_id', axis=1)
+        self.print_df_rowcol('Loaded gene names', df_gene_names)
+
+        # Create reverse lookup
+        self.logger.info('Creating name to id lookup')
+        df_gene_name2id = pd.read_csv(path.join(self.data_dir,self.gene_tsv_path), sep='\t', header=None)
+        df_gene_name2id.columns = ['gene_id', "gene_name"]
+        df_gene_name2id.index = df_gene_name2id.gene_name
+        df_gene_name2id = df_gene_name2id.drop('gene_name', axis=1)
+
+        #df_yang = self.processYang()
+        df_joost = self.processJoost(df_gene_name2id) 
+        #df_gh = self.processGhahramai(df_gene_name2id)
+
         # *****************************************************************************
         # Merge
         # *****************************************************************************
@@ -304,9 +321,9 @@ class Preprocessor:
         self.logger.info('Merging datasets')
 
         # Create merged dataset from all subsets
-        df_tpm_combined = df_tpm_1.join(df_tpm_2, lsuffix='', rsuffix='_other', how='inner')
-        df_tpm_combined = df_tpm_combined.join(df_tpm_3, lsuffix='', rsuffix='_other', how='inner')
-        df_tpm_combined = df_tpm_combined.join(df_tpm_4, lsuffix='', rsuffix='_other', how='inner')
+        #df_tpm_combined = df_yang.join(df_joost, lsuffix='', rsuffix='_other', how='inner')
+        #df_tpm_combined = df_tpm_combined.join(df_gh, lsuffix='', rsuffix='_other', how='inner')
+        df_tpm_combined = df_joost
 
         self.print_df_rowcol('Shape after merging', df_tpm_combined)
 
@@ -371,15 +388,28 @@ class Preprocessor:
         sc.tl.pca(clustered, n_comps=50) # Get pca of this?
         sc.pl.pca(clustered, color=['dataset'], save='_pre_post_zheng17.png')
 
+
+        cell_counts = pd.DataFrame(sc_raw.X.sum(axis=1))
+        df = pd.DataFrame(sc_raw.obs['dataset'])
+        cell_counts.to_csv('~/dev/cell_counts.csv')
+        df.to_csv('~/dev/dataset.csv')
+        print(df)
+        for val in cell_counts:
+            print(val)
+        # print(sc_raw.X.sum(axis=0))
+        # print(sc_raw.X.sum(axis=1))
+        # print(sc_raw.X.sum(axis=0).max())
+        # print(.max())
+
         # Log the data matrix (log2(TPM+1))
-        sc.pp.log1p(sc_raw, base=2)
+        #sc.pp.log1p(sc_raw, base=2)
 
         # Filter cells
-        sc.pp.filter_cells(sc_raw, min_genes=1000)
+        #sc.pp.filter_cells(sc_raw, min_genes=1000)
         self.logger.info("Cells remaining: " + str(sc_raw.n_obs))
 
         # Filter gene
-        sc.pp.filter_genes(sc_raw, min_cells=500)
+        #sc.pp.filter_genes(sc_raw, min_cells=500)
         self.logger.info("Genes remaining: " + str(len(sc_raw.var.index)))
 
         # Clustering
@@ -403,7 +433,7 @@ class Preprocessor:
         #print(sc_raw.X.sum(axis=0).max())
 
         # TODO: Total count normalise the data?
-        sc.pp.normalize_per_cell(sc_raw, counts_per_cell_after=self.params_pre_scale)
+        #sc.pp.normalize_per_cell(sc_raw, counts_per_cell_after=self.params_pre_scale)
 
         # Setup random
         random.seed(SEED)
@@ -528,6 +558,8 @@ class Preprocessor:
             feat_map['barcode'] = tf.train.Feature(bytes_list=tf.train.BytesList(value=[str.encode(d.barcode)]))
             feat_map['genes_no'] = tf.train.Feature(int64_list=tf.train.Int64List(value=[d.genes_no]))
             feat_map['count_no'] = tf.train.Feature(int64_list=tf.train.Int64List(value=[d.count_no]))
+
+            self.logger.info('Total:' + str(d.count_no) + ' - Min:' + str(vals.min()) + ' - Max:' + str(vals.max()))
 
             # add hot encoding for classification problems
             #feat_map['cluster_1hot'] = tf.train.Feature(

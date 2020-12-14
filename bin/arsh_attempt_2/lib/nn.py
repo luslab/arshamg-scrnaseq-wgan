@@ -102,7 +102,7 @@ class Net:
    
         log_path = os.path.join(self.output_dir, "logs", "gradient_tape", current_time)
         all_loss_log_path = os.path.join(log_path, "all_train")
-        gen_loss_log_path = os.path.join(log_path, current_time, "gen_train")
+        gen_loss_log_path = os.path.join(log_path, current_time, "gen_trai- n")
         disc_loss_log_path = os.path.join(log_path, current_time, "disc_train")
         image_log_path = os.path.join(self.output_dir, "logs", "images", current_time, "training")
 
@@ -338,10 +338,10 @@ class Net:
 
         # Training loop
         for epoch in range(self.train_number_epochs):
-            self.logger.info("Epoch " + str(epoch))
-
             # Save checkpoints and gen example data
             if epoch % self.train_write_freq == 0:
+                self.logger.info("Epoch " + str(epoch))
+
                 # Save checkpoint
                 checkpoint.save(file_prefix = checkpoint_prefix)
 
