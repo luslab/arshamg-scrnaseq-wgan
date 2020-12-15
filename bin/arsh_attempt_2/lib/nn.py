@@ -32,7 +32,7 @@ class Net:
     train_write_freq = 1 # How often to write a checkpoint and save some example images
     example_dataset_batch_size = 500 # How many profiles to generate for an example dataset
 
-    params_pre_scale = 20000
+    params_pre_scale = 1000000
 
     # NN shape
     nn_latent_var_size = 100
@@ -46,7 +46,7 @@ class Net:
     # NN params
     nn_epsilon = 1e-6
     nn_disc_dropout = 0.3
-    nn_learning_rate = 5e-5
+    nn_learning_rate = 0.001
     nn_gp_lambda = 10
 
     # Misc

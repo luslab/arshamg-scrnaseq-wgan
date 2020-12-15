@@ -342,13 +342,13 @@ class Preprocessor:
         #df_tpm_combined = df_tpm_combined.drop('gene_name', axis=1)
         #self.print_df_rowcol('Shape after switching to gene names', df_tpm_combined)
 
-        # Write to file
-        df_tpm_combined.to_csv(path.join(self.data_dir, self.tpm_combined_path))
-
         # Get limits
         r_min = df_tpm_combined.min().min()
         r_max = df_tpm_combined.max().max()
         self.logger.info('Real prof min/max ' + str(r_min) + ' - ' + str(r_max))
+
+        # Write to file
+        df_tpm_combined.to_csv(path.join(self.data_dir, self.tpm_combined_path))
 
     def annotateScData(self):
         if path.exists(path.join(self.data_dir, self.h5ad_combined_path)) is True:
@@ -396,11 +396,11 @@ class Preprocessor:
         # TODO: Use pca to choose correct number of components
 
         sc.tl.pca(sc_raw, n_comps=50) # Get pca of this?
-        sc.pl.pca(sc_raw, color=['dataset'], save='_pre_b4_zheng17.png')
+        sc.pl.pca(sc_raw, color=['dataset'], save='_01_b4_zheng17.png')
         clustered = sc_raw.copy()
         sc.pp.recipe_zheng17(clustered) # some kind of expression normalisation and selection
         sc.tl.pca(clustered, n_comps=50) # Get pca of this?
-        sc.pl.pca(clustered, color=['dataset'], save='_pre_post_zheng17.png')
+        sc.pl.pca(clustered, color=['dataset'], save='_02_post_zheng17.png')
 
         # Log the data matrix (log2(TPM+1))
         #sc.pp.log1p(sc_raw, base=2)
@@ -420,7 +420,7 @@ class Preprocessor:
         # Add clusters to the raw data and plot
         sc_raw.obs['cluster'] = clustered.obs['louvain']
         sc.tl.tsne(sc_raw)
-        sc.pl.tsne(sc_raw, color=['cluster','dataset'], save='_pre_louvain.png')
+        sc.pl.tsne(sc_raw, color=['cluster','dataset'], save='_03_louvain.png')
 
         # Calc cluster ratios
         cells_per_cluster = Counter(sc_raw.obs['cluster'])
@@ -486,7 +486,12 @@ class Preprocessor:
         # Show plot of training split
         self.logger.info("Data split results")
         print(sc_raw.obs['split'].value_counts())
-        sc.pl.tsne(sc_raw, color=['dataset','cluster','split'], save='_pre_split.png')
+        sc.pl.tsne(sc_raw, color=['dataset','cluster','split'], save='_04_summary.png')
+
+        # Normalise to -1 - 1
+        sc_raw.X = 2 * (sc_raw.X / 1000000) -1
+
+        sc.pl.tsne(sc_raw, color=['dataset','cluster','split'], save='_05_summary_after_norm.png')
 
         # Write to file
         self.logger.info("Write processed dataset")
