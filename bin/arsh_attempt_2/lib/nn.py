@@ -165,7 +165,7 @@ class Net:
         noise = tf.random.normal([batch_size, self.nn_latent_var_size])
         return noise
 
-    def generate_profile(self, gen, batch_size, label, gene_names, epoch):
+    def generate_profile_batch(self, gen, batch_size, label, gene_names, epoch):
         # Generate from latent variable space (Gaussian)
         noise = self.gen_noise(batch_size)
 
@@ -192,7 +192,7 @@ class Net:
 
     def generate_example_profiles(self, generator, df_gene_names, sc_test, epoch):
         # Generate cell examples
-        df_gen_prof = self.generate_profile(generator, self.example_dataset_batch_size, 'gencell_ep' + str(epoch) + '_', df_gene_names, epoch)
+        df_gen_prof = self.generate_profile_batch(generator, self.example_dataset_batch_size, 'gencell_ep' + str(epoch) + '_', df_gene_names, epoch)
         gen_prof_path = os.path.join(self.output_dir, self.profile_dir,"gen_prof_" + str(epoch) + ".csv")
         df_gen_prof.to_csv(gen_prof_path)
 
@@ -220,7 +220,7 @@ class Net:
 
     @tf.function
     def train_step(self, gen, disc, gen_opt, disc_opt, met_gen_loss, met_disc_loss, real_profiles):
-        with tf.GradientTape(persistent=True) as tape:
+        with tf.GradientTape(persistent=True) as gen_tape, tf.GradientTape(persistent=True) as disc_tape:
             # Generate noise
             noise = self.gen_noise(real_profiles.shape[0])
 
@@ -255,8 +255,8 @@ class Net:
             gploss = dloss + (self.nn_gp_lambda * gradient_penalty)
 
         # Save the gradients
-        gradients_of_generator = tape.gradient(gloss, gen.trainable_variables)
-        gradients_of_discriminator = tape.gradient(gploss, disc.trainable_variables)
+        gradients_of_generator = gen_tape.gradient(gloss, gen.trainable_variables)
+        gradients_of_discriminator = disc_tape.gradient(gploss, disc.trainable_variables)
 
         # Apply the gradients
         gen_opt.apply_gradients(zip(gradients_of_generator, gen.trainable_variables))
