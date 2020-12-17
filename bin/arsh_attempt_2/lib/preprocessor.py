@@ -509,7 +509,11 @@ class Preprocessor:
         #There are no MT genes in the merged dataset
 
         sc.tl.tsne(sc_pp)
-        sc.pl.tsne(sc_pp, color=['dataset'])
+        sc.pl.tsne(sc_pp, color=['dataset'], save='_06_tsne_datasets.png')
+
+        sc.pp.neighbors(sc_pp)
+        sc.tl.umap(sc_pp)
+        sc.pl.umap(sc_pp, color=['dataset'], save='_07_umap_datasets.png')
 
     def createTfRecords(self):
         self.logger.info('Creating tensor records')

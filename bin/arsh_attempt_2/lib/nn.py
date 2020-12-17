@@ -231,14 +231,11 @@ class Net:
             real_output = disc(real_profiles, training=True)
             fake_output = disc(generated_profiles, training=True)
 
-            # Calc loss
-            dloss = tf.reduce_mean(fake_output) - tf.reduce_mean(real_output)
-            gloss = -tf.reduce_mean(fake_output)
-
             # Calculate interpolated profile 
             shape = [tf.shape(real_profiles)[0]] + [1] * (real_profiles.shape.ndims - 1)
-            epsilon = tf.random.uniform(shape=shape, minval=0., maxval=1.)
-            interpolated_profiles = real_profiles + epsilon * (generated_profiles - real_profiles)
+            epsilon = tf.random.uniform(shape=shape, minval=0.0, maxval=1.0)
+            #interpolated_profiles = real_profiles + epsilon * (generated_profiles - real_profiles)
+            interpolated_profiles = epsilon * real_profiles + (1.0 - epsilon) * generated_profiles
 
             # Run through disc with nested gradient tape
             with tf.GradientTape(persistent=True) as tape2:
@@ -248,7 +245,11 @@ class Net:
             # Compute gradient penalty
             grad = tape2.gradient(d_interpolated, interpolated_profiles)
             norm = tf.norm(tf.reshape(grad, [tf.shape(grad)[0], -1]), axis=1)
-            gradient_penalty = tf.reduce_mean((norm - 1.)**2)
+            gradient_penalty = tf.reduce_mean((norm - 1.0) ** 2)
+
+            # Calc loss
+            dloss = tf.reduce_mean(real_output) - tf.reduce_mean(fake_output)
+            gloss = tf.reduce_mean(fake_output)
 
             # Calculate adjusted loss
             gploss = dloss + (self.nn_gp_lambda * gradient_penalty)
@@ -325,8 +326,11 @@ class Net:
         #discriminator.summary()
 
         # Create optimizers
-        generator_optimizer = tf.keras.optimizers.Adam(learning_rate=self.nn_learning_rate, amsgrad=True)
-        discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=self.nn_learning_rate, amsgrad=True)
+        # generator_optimizer = tf.keras.optimizers.Adam(learning_rate=self.nn_learning_rate, amsgrad=True)
+        # discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=self.nn_learning_rate, amsgrad=True)
+        generator_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001, beta_1=0.5, amsgrad=True)
+        discriminator_optimizer =  tf.keras.optimizers.RMSprop(learning_rate=0.0005)
+
 
         # Create checkpoints
         checkpoint_prefix = os.path.join(self.output_dir, "training_checkpoints", "ckpt")
