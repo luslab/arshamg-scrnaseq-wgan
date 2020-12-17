@@ -157,7 +157,7 @@ class Net:
     
         #L3
         model.add(layers.Flatten())
-        model.add(layers.Dense(1, activation="sigmoid"))
+        model.add(layers.Dense(1))
     
         return model
 
